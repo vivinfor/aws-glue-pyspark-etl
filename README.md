@@ -58,5 +58,5 @@ Este projeto demonstra um pipeline de **ETL escalável** usando **AWS Glue e PyS
 - Criar uma **estrutura de particionamento** para otimizar queries.
 - Implementar **testes automatizados** de qualidade dos dados.
 
-🚀 **Desenvolvido por [Seu Nome] - Demonstrando expertise em ETL com PySpark e AWS Glue!**
+🚀 **Desenvolvido por [Viviana]**
 
