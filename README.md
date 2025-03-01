@@ -27,7 +27,7 @@ Este projeto demonstra um pipeline de **ETL escalável** usando **AWS Glue e PyS
 ### 📌 Configuração do Ambiente
 1. **Clone o repositório:**
 ```sh
- git clone https://github.com/seuusuario/aws-glue-pyspark-etl.git
+ git clone https://github.com/vivinfor/aws-glue-pyspark-etl.git
  cd aws-glue-pyspark-etl
 ```
 2. **Crie um ambiente virtual e instale as dependências:**
