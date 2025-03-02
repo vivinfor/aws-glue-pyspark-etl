@@ -1,5 +1,11 @@
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from data_validation import validate_data  # Importa a função corretamente
+
 from pyspark.sql import SparkSession
-from scripts.data_validation import validate_data
 
 # Criar sessão Spark
 spark = SparkSession.builder.appName("Validação de Dados").getOrCreate()
