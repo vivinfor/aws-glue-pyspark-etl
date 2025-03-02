@@ -3,7 +3,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from data_validation import validate_data  # Importa a função corretamente
+from data_validation import validate_data
 
 from pyspark.sql import SparkSession
 
