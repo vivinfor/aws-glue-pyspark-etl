@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from scripts.data_validation import validate_data  # Importe a função de validação
+from scripts.data_validation import validate_data
 
 # Criar sessão Spark
 spark = SparkSession.builder.appName("Validação de Dados").getOrCreate()
