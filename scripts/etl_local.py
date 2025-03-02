@@ -1,6 +1,7 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, mean, stddev, when, date_format, unix_timestamp, lag, concat, lit, count
 from pyspark.sql.window import Window
+import os
 
 # Criar sessão Spark
 spark = SparkSession.builder \
@@ -29,8 +30,8 @@ df = df.fillna({
     "long": 0.0
 })
 
-# Definir uma janela para cálculo estatístico
-window_spec = Window.orderBy("amt")
+# Definir uma janela para cálculo estatístico (particionada por categoria)
+window_spec = Window.partitionBy("category").orderBy("amt")
 
 # Calcular Z-score corretamente
 df = df.withColumn("z_score", (col("amt") - mean(col("amt")).over(window_spec)) / stddev(col("amt")).over(window_spec))
@@ -61,10 +62,10 @@ df = df.withColumn(
 df = df.withColumn("possible_fraud_high_value", (col("amt") > 10000).cast("integer"))
 
 # Criar uma janela para verificar transações consecutivas do mesmo cartão no mesmo comerciante
-window_spec = Window.partitionBy("cc_num", "merchant").orderBy("unix_time")
+window_spec = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
 
 # Calcular a diferença de tempo entre transações consecutivas
-df = df.withColumn("time_diff", unix_timestamp(col("trans_date_trans_time")) - lag(unix_timestamp(col("trans_date_trans_time"))).over(window_spec))
+df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec))
 
 # Criar uma flag para múltiplas transações em menos de 10 segundos
 df = df.withColumn("possible_fraud_fast_transactions", (col("time_diff") < 10).cast("integer"))
@@ -85,6 +86,13 @@ df = df.withColumn("is_fraud", col("is_fraud").cast("int"))
 # Contagem de valores nulos para validação final
 null_counts = df.select([count(when(col(c).isNull(), c)).alias(c) for c in df.columns])
 null_counts.show()
+
+# Criar diretório de saída se não existir
+if not os.path.exists(OUTPUT_PATH):
+    os.makedirs(OUTPUT_PATH)
+
+# Contagem final de registros após processamento
+print(f"Total de registros processados: {df.count()}")
 
 # Salvar os dados processados em formato Parquet
 df.write.mode("overwrite").parquet(OUTPUT_PATH)
