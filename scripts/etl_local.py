@@ -1,15 +1,20 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, mean, stddev, when, date_format, unix_timestamp, lag, concat, lit
 from pyspark.sql.window import Window
+import os
 
 # Criar sessão Spark
 spark = SparkSession.builder \
     .appName("ETL Local - Fraude Financeira") \
+    .config("spark.sql.debug.maxToStringFields", "100") \
     .getOrCreate()
 
 # Diretórios locais
 INPUT_PATH = "data/dados-brutos.csv"
 OUTPUT_PATH = "data/dados-processados/"
+
+# Verificar se o diretório de saída existe, se não, criar
+os.makedirs(OUTPUT_PATH, exist_ok=True)
 
 # Ler CSV com separador "|"
 df = spark.read.csv(INPUT_PATH, header=True, inferSchema=True, sep="|")
@@ -30,7 +35,7 @@ df = df.fillna({
 })
 
 # Definir uma janela para cálculo estatístico
-window_spec = Window.orderBy("amt")
+window_spec = Window.partitionBy().orderBy("amt")
 
 # Calcular Z-score corretamente
 df = df.withColumn("z_score", (col("amt") - mean(col("amt")).over(window_spec)) / stddev(col("amt")).over(window_spec))
