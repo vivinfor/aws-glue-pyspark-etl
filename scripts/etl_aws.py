@@ -6,7 +6,10 @@ from pyspark.context import SparkContext
 from awsglue.context import GlueContext
 from awsglue.dynamicframe import DynamicFrame
 from awsglue.job import Job
-from pyspark.sql.functions import col, mean, stddev, when, date_format, unix_timestamp, lag, concat, lit, count
+from pyspark.sql.functions import (
+    col, mean, stddev, when, date_format, unix_timestamp, lag,
+    concat, lit, count
+)
 from pyspark.sql.window import Window
 
 # Configuração do logger
@@ -98,7 +101,7 @@ df = df.withColumn("time_diff", unix_timestamp(col("trans_date_trans_time")) - l
 # Criar uma flag para múltiplas transações em menos de 10 segundos
 df = df.withColumn("possible_fraud_fast_transactions", (col("time_diff") < 10).cast("integer"))
 
-# Validação de tipo de dado
+# Ajuste de tipos de dados para garantir conformidade com o schema esperado
 df = df.withColumn("cc_num", col("cc_num").cast("string"))
 df = df.withColumn("amt", col("amt").cast("float"))
 df = df.withColumn("zip", col("zip").cast("integer"))
@@ -126,7 +129,7 @@ logger.info(f"Total de registros processados: {df.count()}")
 # Converter para DynamicFrame para AWS Glue
 dynamic_frame = DynamicFrame.fromDF(df, glueContext, "dynamic_frame")
 
-# Salvar os dados processados no S3
+# Salvar os dados processados no S3 com particionamento otimizado
 glueContext.write_dynamic_frame.from_options(
     frame=dynamic_frame,
     connection_type="s3",
