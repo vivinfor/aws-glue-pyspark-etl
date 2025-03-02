@@ -77,8 +77,9 @@ aws-glue-pyspark-etl/
 ├── sql/                           # Consultas SQL otimizadas
 ├── power_bi/                      # Dashboard Power BI
 ├── docs/                          # Documentação adicional
-├── config/                        # Arquivos de configuração
-│   ├── schema.json                # Especificação do schema para validação de dados
+├── config/
+│   ├── schema.json  # Definição do schema para validação de dados
+│   ├── settings.yaml #Configurações gerais
 └── README.md                      # Documentação principal do projeto
 ```
 
