@@ -37,11 +37,14 @@ df = df.fillna({
 if IS_LOCAL:
     df = df.repartition(4)  # Reduz o número de partições, mas mantém eficiência
 
-# Definir uma janela para cálculo estatístico (particionada por categoria)
-window_spec = Window.partitionBy("category").orderBy("amt")
+# **1️⃣ Definir janela para cálculo estatístico (particionada por categoria)**
+window_spec_zscore = Window.partitionBy("category").orderBy("amt")
 
 # Calcular Z-score corretamente
-df = df.withColumn("z_score", (col("amt") - mean(col("amt")).over(window_spec)) / stddev(col("amt")).over(window_spec))
+df = df.withColumn(
+    "z_score",
+    (col("amt") - mean("amt").over(window_spec_zscore)) / stddev("amt").over(window_spec_zscore)
+)
 
 # Filtrar outliers mantendo apenas valores dentro de 3 desvios padrão
 df = df.filter(col("z_score").between(-3, 3)).drop("z_score")
@@ -68,11 +71,11 @@ df = df.withColumn(
 # Criar uma flag para transações acima de 10.000
 df = df.withColumn("possible_fraud_high_value", (col("amt") > 10000).cast("integer"))
 
-# Criar uma janela para verificar transações consecutivas do mesmo cartão no mesmo comerciante
-window_spec = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
+# **2️⃣ Definir janela para detecção de transações rápidas (particionada corretamente)**
+window_spec_time = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
 
 # Calcular a diferença de tempo entre transações consecutivas
-df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec))
+df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec_time))
 
 # Criar uma flag para múltiplas transações em menos de 10 segundos
 df = df.withColumn("possible_fraud_fast_transactions", (col("time_diff") < 10).cast("integer"))
