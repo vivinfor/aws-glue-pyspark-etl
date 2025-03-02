@@ -8,7 +8,7 @@ from pyspark.sql.window import Window
 spark = SparkSession.builder.appName("Validação de Dados - ETL").getOrCreate()
 
 # Definir caminhos dos arquivos
-SCHEMA_PATH = "data/schema.json"
+SCHEMA_PATH = "config/schema.json"
 DATA_PATH = "data/dados-processados/"
 
 # Carregar o schema esperado
