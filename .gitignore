@@ -1,0 +1,10 @@
+# Ignorar arquivos e pastas desnecessárias
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.env
+logs/
+data/dados-processados/
+notebooks/__pycache__/

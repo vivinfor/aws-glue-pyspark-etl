@@ -1,0 +1,6 @@
+pyspark
+pandas
+fastapi
+uvicorn
+boto3
+pyyaml
