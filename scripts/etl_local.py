@@ -12,6 +12,9 @@ spark = SparkSession.builder \
 INPUT_PATH = "data/dados-brutos.csv"
 OUTPUT_PATH = "data/dados-processados/"
 
+# Verifica se o código está rodando localmente
+IS_LOCAL = os.getenv("IS_LOCAL", "true").lower() == "true"
+
 # Ler CSV com separador "|"
 df = spark.read.csv(INPUT_PATH, header=True, inferSchema=True, sep="|")
 
@@ -30,24 +33,15 @@ df = df.fillna({
     "long": 0.0
 })
 
-# Verifica se o código está rodando localmente
-IS_LOCAL = os.getenv("IS_LOCAL", "true").lower() == "true"
-
-# Se for execução local, reduzir número de partições para evitar WARN
+# Se for execução local, reduzir o número de partições para evitar WARNs
 if IS_LOCAL:
-    df = df.repartition(1)
+    df = df.repartition(4)  # Reduz o número de partições, mas mantém eficiência
 
 # Definir uma janela para cálculo estatístico (particionada por categoria)
 window_spec = Window.partitionBy("category").orderBy("amt")
 
 # Calcular Z-score corretamente
 df = df.withColumn("z_score", (col("amt") - mean(col("amt")).over(window_spec)) / stddev(col("amt")).over(window_spec))
-
-# Criar uma janela para verificar transações consecutivas do mesmo cartão no mesmo comerciante
-window_spec = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
-
-# Calcular a diferença de tempo entre transações consecutivas
-df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec))
 
 # Filtrar outliers mantendo apenas valores dentro de 3 desvios padrão
 df = df.filter(col("z_score").between(-3, 3)).drop("z_score")
