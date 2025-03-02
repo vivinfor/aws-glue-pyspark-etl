@@ -1,6 +1,6 @@
 {
     "fields": [
-        {"name": "trans_date_trans_time", "type": "string", "format": "yyyy-MM-dd HH:mm:ss", "nullable": false},
+        {"name": "trans_date_trans_time", "type": "timestamp", "format": "yyyy-MM-dd HH:mm:ss", "nullable": false},
         {"name": "cc_num", "type": "string", "nullable": false},
         {"name": "merchant", "type": "string", "nullable": true},
         {"name": "category", "type": "string", "nullable": true},

@@ -33,6 +33,7 @@ df = df.fillna({
 # Definir uma janela para cálculo estatístico (particionada por categoria)
 window_spec = Window.partitionBy("category").orderBy("amt")
 
+
 # Calcular Z-score corretamente
 df = df.withColumn("z_score", (col("amt") - mean(col("amt")).over(window_spec)) / stddev(col("amt")).over(window_spec))
 
@@ -70,18 +71,20 @@ df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(un
 # Criar uma flag para múltiplas transações em menos de 10 segundos
 df = df.withColumn("possible_fraud_fast_transactions", (col("time_diff") < 10).cast("integer"))
 
-# Ajuste de tipos de dados para conformidade com schema esperado
+# Validação de tipo de dado
 df = df.withColumn("cc_num", col("cc_num").cast("string"))
 df = df.withColumn("amt", col("amt").cast("float"))
-df = df.withColumn("zip", col("zip").cast("int"))
+df = df.withColumn("zip", col("zip").cast("integer"))
 df = df.withColumn("lat", col("lat").cast("float"))
 df = df.withColumn("long", col("long").cast("float"))
-df = df.withColumn("city_pop", col("city_pop").cast("int"))
+df = df.withColumn("city_pop", col("city_pop").cast("integer"))
 df = df.withColumn("dob", col("dob").cast("string"))
-df = df.withColumn("unix_time", col("unix_time").cast("int"))
+df = df.withColumn("unix_time", col("unix_time").cast("integer"))
 df = df.withColumn("merch_lat", col("merch_lat").cast("float"))
 df = df.withColumn("merch_long", col("merch_long").cast("float"))
-df = df.withColumn("is_fraud", col("is_fraud").cast("int"))
+df = df.withColumn("is_fraud", col("is_fraud").cast("integer"))
+df = df.withColumn("possible_fraud_high_value", col("possible_fraud_high_value").cast("integer"))
+df = df.withColumn("possible_fraud_fast_transactions", col("possible_fraud_fast_transactions").cast("integer"))
 
 # Contagem de valores nulos para validação final
 null_counts = df.select([count(when(col(c).isNull(), c)).alias(c) for c in df.columns])
@@ -96,6 +99,6 @@ print(f"Total de registros processados: {df.count()}")
 
 # Salvar os dados processados em formato Parquet
 df.write.mode("overwrite").partitionBy("category").parquet(OUTPUT_PATH)
-print("ETL Finalizado com Sucesso!")
 
+print("ETL Finalizado com Sucesso!")
 spark.stop()
