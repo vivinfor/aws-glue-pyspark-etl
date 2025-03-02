@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, mean, stddev, when, date_format, unix_timestamp, lag, concat
+from pyspark.sql.functions import col, mean, stddev, when, date_format, unix_timestamp, lag, concat, lit
 from pyspark.sql.window import Window
 
 # Criar sessão Spark
@@ -47,7 +47,6 @@ df = df.withColumn("trans_date_trans_time", col("trans_date_trans_time").cast("t
 # Criar colunas de dia da semana e horário
 df = df.withColumn("day_of_week", date_format(col("trans_date_trans_time"), "E"))
 df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
-
 
 # Criar coluna categorizando o período da transação
 df = df.withColumn(
