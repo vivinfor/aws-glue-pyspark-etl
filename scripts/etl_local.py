@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, mean, stddev, when, date_format, unix_timestamp, lag
+from pyspark.sql.functions import col, mean, stddev, when, date_format, unix_timestamp, lag, concat
 from pyspark.sql.window import Window
 
 # Criar sessão Spark
@@ -38,9 +38,16 @@ df = df.withColumn("z_score", (col("amt") - mean(col("amt")).over(window_spec)) 
 # Filtrar outliers mantendo apenas valores dentro de 3 desvios padrão
 df = df.filter(col("z_score").between(-3, 3)).drop("z_score")
 
-# Criar colunas de dia da semana e horário da transação
+# Criar coluna combinando data e hora
+df = df.withColumn("trans_date_trans_time", concat(col("trans_date"), lit(" "), col("trans_time")))
+
+# Converter para timestamp
+df = df.withColumn("trans_date_trans_time", col("trans_date_trans_time").cast("timestamp"))
+
+# Criar colunas de dia da semana e horário
 df = df.withColumn("day_of_week", date_format(col("trans_date_trans_time"), "E"))
 df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
+
 
 # Criar coluna categorizando o período da transação
 df = df.withColumn(
