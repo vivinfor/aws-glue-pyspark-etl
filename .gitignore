@@ -8,3 +8,6 @@ __pycache__/
 logs/
 data/dados-processados/
 notebooks/__pycache__/
+# Ignorar arquivos CSV e a pasta de dados
+data/
+*.csv
