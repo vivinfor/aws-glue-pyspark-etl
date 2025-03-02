@@ -1,6 +1,7 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, mean, stddev, when, date_format, unix_timestamp, lag, concat, lit, count
 from pyspark.sql.window import Window
+from scripts.data_validation import validate_data
 import os
 
 # Criar sessão Spark
