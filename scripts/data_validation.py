@@ -1,7 +1,7 @@
 import json
 import pandas as pd
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, count, when, mean, stddev, unix_timestamp, lag
+from pyspark.sql.functions import col, mean, stddev, unix_timestamp, lag
 from pyspark.sql.window import Window
 
 # Criar sessão Spark

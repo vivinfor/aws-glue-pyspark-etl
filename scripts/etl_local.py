@@ -1,7 +1,6 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, mean, stddev, when, date_format, unix_timestamp, lag, concat, lit, count
 from pyspark.sql.window import Window
-from scripts.data_validation import validate_data
 import os
 
 # Criar sessão Spark
@@ -96,7 +95,7 @@ if not os.path.exists(OUTPUT_PATH):
 print(f"Total de registros processados: {df.count()}")
 
 # Salvar os dados processados em formato Parquet
-df.write.mode("overwrite").parquet(OUTPUT_PATH)
-
+df.write.mode("overwrite").partitionBy("category").parquet(OUTPUT_PATH)
 print("ETL Finalizado com Sucesso!")
+
 spark.stop()
