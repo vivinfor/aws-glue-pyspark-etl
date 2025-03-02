@@ -3,6 +3,17 @@
 ## 📌 Objetivo
 Este projeto demonstra um pipeline de **ETL escalável** usando **AWS Glue e PySpark** para processamento e transformação de dados. Ele inclui técnicas para **limpeza, tratamento de outliers, estatísticas descritivas e armazenamento otimizado no S3**.
 
+## 🔹 Fonte dos Dados
+Os dados utilizados neste projeto são provenientes de um dataset público disponibilizado pelo Kaggle, referente a **transações financeiras sintéticas**. O dataset foi gerado através da ferramenta **Sparkov Data Generation**, simulando transações de janeiro a dezembro de 2023. 
+
+### 📌 Link para o dataset:
+[Kaggle - Fraude em Transações de Cartão de Crédito](https://www.kaggle.com/competitions/fraude-em-transaes-de-carto-de-crdito/data)
+
+O dataset contém informações como:
+- **Dados da transação** (data, valor, comerciante, categoria, localização, etc.).
+- **Informações do titular do cartão** (nome, endereço, gênero, profissão, etc.).
+- **Indicador de fraude (`is_fraud`)** para identificar transações fraudulentas.
+
 ## 🔹 Tecnologias Utilizadas
 - **AWS Glue**: Para processamento e transformação de dados em grande escala.
 - **PySpark**: Para manipulação e transformação eficiente dos dados.
@@ -10,13 +21,22 @@ Este projeto demonstra um pipeline de **ETL escalável** usando **AWS Glue e PyS
 - **SQL**: Para análise e validação de qualidade dos dados.
 
 ## 🚀 Pipeline de ETL
-1. **Extração**: Carregamento de um dataset público (ex: transações financeiras, logs, etc.) armazenado no **S3**.
+1. **Extração**: Carregamento do dataset público armazenado no **S3**.
 2. **Transformação**:
    - Remoção de **valores nulos e duplicados**.
-   - **Detecção de outliers** usando **Z-score** e **IQR**.
+   - **Validação da estrutura do dataset** de acordo com um schema predefinido (`schema.json`).
+   - **Detecção de outliers** usando **Z-score**.
    - Cálculo de **estatísticas descritivas** (média, mediana, desvio padrão, distribuição de valores faltantes).
    - Normalização de colunas.
 3. **Carga**: Salvamento do dataset transformado no S3, pronto para análise posterior.
+
+## 🔹 Validação dos Dados
+Durante o pipeline ETL, aplicamos uma série de validações para garantir a qualidade e consistência dos dados:
+- **Estrutura e tipos de dados**: Validação contra um schema predefinido (`schema.json`).
+- **Presença de valores nulos**: Exclusão de registros com campos críticos vazios.
+- **Detecção de outliers**: Identificação e tratamento de valores atípicos usando **Z-score**.
+- **Distribuição dos dados**: Verificação de anomalias estatísticas.
+- **Formato e integridade das datas**: Conversão de formatos e análise de consistência temporal.
 
 ## 🛠️ Como Rodar o Projeto
 ### 📌 Pré-requisitos
@@ -57,6 +77,6 @@ Este projeto demonstra um pipeline de **ETL escalável** usando **AWS Glue e PyS
 - Integrar com **AWS Lambda** para execução automatizada do ETL.
 - Criar uma **estrutura de particionamento** para otimizar queries.
 - Implementar **testes automatizados** de qualidade dos dados.
+- Criar dashboards com **Plotly** ou **Power BI** para análise de fraudes.
 
 🚀 **Desenvolvido por [Viviana]**
-
