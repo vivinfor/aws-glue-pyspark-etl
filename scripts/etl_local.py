@@ -29,8 +29,13 @@ df = df.fillna({
     "long": 0.0
 })
 
-# Detecção e remoção de outliers no valor da transação (Z-score)
-df = df.withColumn("z_score", (col("amt") - mean("amt").over()) / stddev("amt").over())
+# Definir uma janela para cálculo estatístico
+window_spec = Window.orderBy("amt")
+
+# Calcular Z-score corretamente
+df = df.withColumn("z_score", (col("amt") - mean(col("amt")).over(window_spec)) / stddev(col("amt")).over(window_spec))
+
+# Filtrar outliers mantendo apenas valores dentro de 3 desvios padrão
 df = df.filter(col("z_score").between(-3, 3)).drop("z_score")
 
 # Criar colunas de dia da semana e horário da transação
