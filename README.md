@@ -79,4 +79,4 @@ Durante o pipeline ETL, aplicamos uma série de validações para garantir a qua
 - Implementar **testes automatizados** de qualidade dos dados.
 - Criar dashboards com **Plotly** ou **Power BI** para análise de fraudes.
 
-🚀 **Desenvolvido por [Viviana]**
+🚀 Desenvolvido por [Viviana](https://github.com/vivinfor)
