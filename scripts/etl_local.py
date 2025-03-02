@@ -7,6 +7,7 @@ import os
 spark = SparkSession.builder \
     .appName("ETL Local - Fraude Financeira") \
     .config("spark.sql.debug.maxToStringFields", "100") \
+    .config("spark.hadoop.fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem") \
     .getOrCreate()
 
 # Diretórios locais
