@@ -1,0 +1,27 @@
+{
+    "fields": [
+        {"name": "index", "type": "integer", "nullable": false},
+        {"name": "trans_date_trans_time", "type": "string", "format": "yyyy-MM-dd HH:mm:ss", "nullable": false},
+        {"name": "cc_num", "type": "string", "nullable": false},
+        {"name": "merchant", "type": "string", "nullable": true},
+        {"name": "category", "type": "string", "nullable": true},
+        {"name": "amt", "type": "float", "nullable": false},
+        {"name": "first", "type": "string", "nullable": true},
+        {"name": "last", "type": "string", "nullable": true},
+        {"name": "gender", "type": "string", "nullable": true},
+        {"name": "street", "type": "string", "nullable": true},
+        {"name": "city", "type": "string", "nullable": true},
+        {"name": "state", "type": "string", "nullable": true},
+        {"name": "zip", "type": "integer", "nullable": true},
+        {"name": "lat", "type": "float", "nullable": true},
+        {"name": "long", "type": "float", "nullable": true},
+        {"name": "city_pop", "type": "integer", "nullable": true},
+        {"name": "job", "type": "string", "nullable": true},
+        {"name": "dob", "type": "string", "format": "yyyy-MM-dd", "nullable": true},
+        {"name": "trans_num", "type": "string", "nullable": false},
+        {"name": "unix_time", "type": "integer", "nullable": false},
+        {"name": "merch_lat", "type": "float", "nullable": true},
+        {"name": "merch_long", "type": "float", "nullable": true},
+        {"name": "is_fraud", "type": "integer", "nullable": false}
+    ]
+}
