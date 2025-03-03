@@ -1,1 +1,3 @@
 data_path: "C:/Users/vivin/aws-glue-pyspark-etl/data/processed/"
+raw_data_path: "C:/Users/vivin/aws-glue-pyspark-etl/data/raw/"
+
