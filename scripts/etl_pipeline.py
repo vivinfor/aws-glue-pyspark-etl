@@ -45,8 +45,8 @@ if IS_AWS:
 else:
     spark = SparkSession.builder \
         .appName("ETL Pipeline") \
-        .config("spark.sql.parquet.compression.codec", "snappy") \  # Habilitar compressão otimizada
-        .config("spark.sql.files.maxPartitionBytes", "128MB") \  # Ajustar tamanho de partições
+        .config("spark.sql.parquet.compression.codec", "snappy") \
+        .config("spark.sql.files.maxPartitionBytes", "128MB") \
         .getOrCreate()
     logger.info("💻 Executando localmente no PySpark.")
 
