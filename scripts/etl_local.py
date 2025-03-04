@@ -1,30 +1,59 @@
+import os
+import yaml
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, mean, stddev, when, date_format, unix_timestamp, lag, concat, lit, count
 from pyspark.sql.window import Window
-import os
 
-# Criar sessão Spark
+# 📌 **Carregar Configuração do YAML**
+config_path = os.path.abspath("config/config.yaml")
+print(f"📂 Tentando carregar: {config_path}")
+
+if os.path.exists(config_path):
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+    print("✅ Configuração carregada com sucesso!")
+else:
+    raise FileNotFoundError("❌ Arquivo 'config.yaml' não encontrado!")
+
+# 📌 **Definir caminhos usando o config.yaml**
+RAW_DATA_DIR = os.path.normpath(config.get("raw_data_path", "data/raw/"))
+PROCESSED_DATA_DIR = os.path.normpath(config.get("data_path", "data/processed/"))
+
+# 📌 **Garantir que os caminhos sejam absolutos**
+if not os.path.isabs(RAW_DATA_DIR):
+    RAW_DATA_DIR = os.path.abspath(RAW_DATA_DIR)
+if not os.path.isabs(PROCESSED_DATA_DIR):
+    PROCESSED_DATA_DIR = os.path.abspath(PROCESSED_DATA_DIR)
+
+# 📌 **Listar arquivos na pasta raw e selecionar um arquivo CSV**
+csv_files = [f for f in os.listdir(RAW_DATA_DIR) if f.endswith(".csv")]
+if not csv_files:
+    raise FileNotFoundError(f"❌ Nenhum arquivo CSV encontrado em '{RAW_DATA_DIR}'.")
+
+# 📌 **Selecionar o primeiro arquivo disponível**
+INPUT_PATH = os.path.join(RAW_DATA_DIR, csv_files[0])
+
+print(f"📂 Arquivo de entrada: {INPUT_PATH}")
+
+# 📌 **Verificar se o arquivo existe**
+if not os.path.exists(INPUT_PATH):
+    raise FileNotFoundError(f"❌ O arquivo '{INPUT_PATH}' não foi encontrado!")
+
+# 📌 **Criar sessão Spark**
 spark = SparkSession.builder \
     .appName("ETL Local - Fraude Financeira") \
     .getOrCreate()
 
-# Diretórios locais
-INPUT_PATH = "data/dados-brutos.csv"
-OUTPUT_PATH = "data/dados-processados/"
-
-# Verifica se o código está rodando localmente
-IS_LOCAL = os.getenv("IS_LOCAL", "true").lower() == "true"
-
-# Ler CSV com separador "|"
+# 📌 **Ler CSV com separador '|'**
 df = spark.read.csv(INPUT_PATH, header=True, inferSchema=True, sep="|")
 
-# Remover duplicatas
+# 📌 **Remover duplicatas**
 df = df.dropDuplicates()
 
-# Remover registros onde colunas críticas sejam nulas
+# 📌 **Remover registros onde colunas críticas sejam nulas**
 df = df.na.drop(subset=["cc_num", "amt", "is_fraud"])
 
-# Preencher valores nulos em colunas opcionais
+# 📌 **Preencher valores nulos em colunas opcionais**
 df = df.fillna({
     "merchant": "Desconhecido",
     "city": "Não informado",
@@ -33,33 +62,17 @@ df = df.fillna({
     "long": 0.0
 })
 
-# Se for execução local, reduzir o número de partições para evitar WARNs
+# 📌 **Definir partições para execução local**
+IS_LOCAL = os.getenv("IS_LOCAL", "true").lower() == "true"
 if IS_LOCAL:
-    df = df.repartition(4)  # Reduz o número de partições, mas mantém eficiência
+    df = df.repartition(4)
 
-# **1️⃣ Definir janela para cálculo estatístico (particionada por categoria)**
-window_spec_zscore = Window.partitionBy("category").orderBy("amt")
-
-# Calcular Z-score corretamente
-df = df.withColumn(
-    "z_score",
-    (col("amt") - mean("amt").over(window_spec_zscore)) / stddev("amt").over(window_spec_zscore)
-)
-
-# Filtrar outliers mantendo apenas valores dentro de 3 desvios padrão
-df = df.filter(col("z_score").between(-3, 3)).drop("z_score")
-
-# Criar coluna combinando data e hora
+# 📌 **Criar colunas adicionais**
 df = df.withColumn("trans_date_trans_time", concat(col("trans_date"), lit(" "), col("trans_time")))
-
-# Converter para timestamp
 df = df.withColumn("trans_date_trans_time", col("trans_date_trans_time").cast("timestamp"))
-
-# Criar colunas de dia da semana e horário
 df = df.withColumn("day_of_week", date_format(col("trans_date_trans_time"), "E"))
 df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
 
-# Criar coluna categorizando o período da transação
 df = df.withColumn(
     "transaction_period",
     when(col("hour_of_day") < 6, "Madrugada")
@@ -68,46 +81,19 @@ df = df.withColumn(
     .otherwise("Noite")
 )
 
-# Criar uma flag para transações acima de 10.000
 df = df.withColumn("possible_fraud_high_value", (col("amt") > 10000).cast("integer"))
 
-# **2️⃣ Definir janela para detecção de transações rápidas (particionada corretamente)**
+# 📌 **Criar janela de detecção de transações rápidas**
 window_spec_time = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
-
-# Calcular a diferença de tempo entre transações consecutivas
 df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec_time))
-
-# Criar uma flag para múltiplas transações em menos de 10 segundos
 df = df.withColumn("possible_fraud_fast_transactions", (col("time_diff") < 10).cast("integer"))
 
-# Ajuste de tipos de dados para garantir conformidade com o schema esperado
-df = df.withColumn("cc_num", col("cc_num").cast("string"))
-df = df.withColumn("amt", col("amt").cast("float"))
-df = df.withColumn("zip", col("zip").cast("int"))
-df = df.withColumn("lat", col("lat").cast("float"))
-df = df.withColumn("long", col("long").cast("float"))
-df = df.withColumn("city_pop", col("city_pop").cast("int"))
-df = df.withColumn("dob", col("dob").cast("string"))
-df = df.withColumn("unix_time", col("unix_time").cast("int"))
-df = df.withColumn("merch_lat", col("merch_lat").cast("float"))
-df = df.withColumn("merch_long", col("merch_long").cast("float"))
-df = df.withColumn("is_fraud", col("is_fraud").cast("int"))
-df = df.withColumn("possible_fraud_high_value", col("possible_fraud_high_value").cast("int"))
-df = df.withColumn("possible_fraud_fast_transactions", col("possible_fraud_fast_transactions").cast("int"))
+# 📌 **Criar diretório de saída se não existir**
+if not os.path.exists(PROCESSED_DATA_DIR):
+    os.makedirs(PROCESSED_DATA_DIR)
 
-# Contagem de valores nulos para validação final
-null_counts = df.select([count(when(col(c).isNull(), c)).alias(c) for c in df.columns])
-null_counts.show()
+# 📌 **Salvar os dados processados em Parquet**
+df.write.mode("overwrite").partitionBy("category").parquet(PROCESSED_DATA_DIR)
 
-# Criar diretório de saída se não existir
-if not os.path.exists(OUTPUT_PATH):
-    os.makedirs(OUTPUT_PATH)
-
-# Contagem final de registros após processamento
-print(f"Total de registros processados: {df.count()}")
-
-# Salvar os dados processados em formato Parquet com particionamento por categoria
-df.write.mode("overwrite").partitionBy("category").parquet(OUTPUT_PATH)
-
-print("ETL Finalizado com Sucesso!")
+print("✅ ETL Finalizado com Sucesso!")
 spark.stop()
