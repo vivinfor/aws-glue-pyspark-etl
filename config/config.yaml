@@ -1,3 +1,12 @@
-data_path: "C:/Users/vivin/aws-glue-pyspark-etl/data/processed/"
-raw_data_path: "C:/Users/vivin/aws-glue-pyspark-etl/data/raw/"
+environment: local  # ou "aws"
 
+# Caminhos relativos (para evitar hardcoded paths do Windows)
+raw_data_path: "data/raw/"
+data_path: "data/processed/"
+aws_s3_input: "s3://seu-bucket/dados-brutos.csv"
+aws_s3_output: "s3://seu-bucket/dados-processados/"
+
+# Definições do processamento
+partition_keys: ["day_of_week", "transaction_period"]
+use_z_score_filter: true  # Habilitar ou não o filtro de outliers
+compression: "snappy"  # Formato de compressão para Parquet

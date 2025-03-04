@@ -1,61 +1,63 @@
 import os
 import yaml
+import logging
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, when, date_format, unix_timestamp, lag, concat, lit
+from pyspark.sql.functions import col, when, date_format, unix_timestamp, lag, concat, lit, mean, stddev
 from pyspark.sql.window import Window
 
-# Carregar Configuração do YAML
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+import os
+import yaml
+
+# 📂 Carregar Configuração do YAML
 config_path = os.path.abspath("config/config.yaml")
-print(f"📂 Tentando carregar: {config_path}")
+with open(config_path, "r") as f:
+    config = yaml.safe_load(f)
 
-if os.path.exists(config_path):
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-    print("✅ Configuração carregada com sucesso!")
+# Definir ambiente (Local ou AWS)
+IS_AWS = config.get("environment") == "aws"
+
+# 📂 Definir caminhos de entrada e saída
+if IS_AWS:
+    INPUT_PATH = config.get("aws_s3_input")
+    OUTPUT_PATH = config.get("aws_s3_output")
 else:
-    raise FileNotFoundError("❌ Arquivo 'config.yaml' não encontrado!")
+    INPUT_PATH = os.path.abspath(config.get("raw_data_path"))
+    OUTPUT_PATH = os.path.abspath(config.get("data_path"))
 
-# Definir caminhos usando o config.yaml
-RAW_DATA_DIR = os.path.normpath(config.get("raw_data_path", "data/raw/"))
-PROCESSED_DATA_DIR = os.path.normpath(config.get("data_path", "data/processed/"))
+print(f"📂 Caminho de entrada: {INPUT_PATH}")
+print(f"📂 Caminho de saída: {OUTPUT_PATH}")
 
-# Garantir que os caminhos sejam absolutos
-if not os.path.isabs(RAW_DATA_DIR):
-    RAW_DATA_DIR = os.path.abspath(RAW_DATA_DIR)
-if not os.path.isabs(PROCESSED_DATA_DIR):
-    PROCESSED_DATA_DIR = os.path.abspath(PROCESSED_DATA_DIR)
-
-# Listar arquivos na pasta raw e selecionar um arquivo CSV
-csv_files = [f for f in os.listdir(RAW_DATA_DIR) if f.endswith(".csv")]
-if not csv_files:
-    raise FileNotFoundError(f"❌ Nenhum arquivo CSV encontrado em '{RAW_DATA_DIR}'.")
-
-# Selecionar o primeiro arquivo disponível
-INPUT_PATH = os.path.join(RAW_DATA_DIR, csv_files[0])
-
-print(f"📂 Arquivo de entrada: {INPUT_PATH}")
-
-# Verificar se o arquivo existe
-if not os.path.exists(INPUT_PATH):
-    raise FileNotFoundError(f"❌ O arquivo '{INPUT_PATH}' não foi encontrado!")
 
 # Criar sessão Spark
-spark = SparkSession.builder \
-    .appName("ETL Local - Fraude Financeira") \
-    .getOrCreate()
+if IS_AWS:
+    from awsglue.context import GlueContext
+    from awsglue.dynamicframe import DynamicFrame
+    from pyspark.context import SparkContext
+    sc = SparkContext()
+    glueContext = GlueContext(sc)
+    spark = glueContext.spark_session
+    logger.info("🚀 Executando no AWS Glue.")
+else:
+    spark = SparkSession.builder.appName("ETL Pipeline").getOrCreate()
+    logger.info("💻 Executando localmente no PySpark.")
 
-# Ler CSV com separador '|'
+# 📂 Carregar os dados
+logger.info("📂 Carregando dados...")
 df = spark.read.csv(INPUT_PATH, header=True, inferSchema=True, sep="|")
-print(f"📊 Total de registros carregados: {df.count()}")
+logger.info(f"✅ Total de registros carregados: {df.count()}")
 
-# Remover duplicatas
+# 🔄 Remover duplicatas
 df = df.dropDuplicates()
 
-# Remover registros onde colunas críticas sejam nulas
+# 🚀 Remover registros com colunas críticas nulas
 df = df.na.drop(subset=["cc_num", "amt", "is_fraud"])
-print(f"📊 Registros após remoção de valores nulos críticos: {df.count()}")
+logger.info(f"📊 Registros após remoção de valores nulos críticos: {df.count()}")
 
-# Preencher valores nulos em colunas opcionais
+# 🔹 Preencher valores nulos opcionais
 df = df.fillna({
     "merchant": "Desconhecido",
     "city": "Não informado",
@@ -64,14 +66,16 @@ df = df.fillna({
     "long": 0.0
 })
 
-# Definir partições para execução local
-IS_LOCAL = os.getenv("IS_LOCAL", "true").lower() == "true"
-if IS_LOCAL:
-    df = df.repartition(4)
+# 🧹 **Filtrar Outliers com Z-score** (caso habilitado)
+if config.get("use_z_score_filter", False):
+    logger.info("🚀 Aplicando filtro de outliers (Z-score)...")
+    window_spec = Window.partitionBy("category").orderBy("amt")
+    df = df.withColumn("z_score", (col("amt") - mean(col("amt")).over(window_spec)) / stddev(col("amt")).over(window_spec))
+    df = df.filter(col("z_score").between(-3, 3)).drop("z_score")
+    logger.info(f"📊 Registros após remoção de outliers: {df.count()}")
 
-# Criar colunas adicionais
-df = df.withColumn("trans_date_trans_time", concat(col("trans_date"), lit(" "), col("trans_time")))
-df = df.withColumn("trans_date_trans_time", col("trans_date_trans_time").cast("timestamp"))
+# 🔹 Criar colunas adicionais
+df = df.withColumn("trans_date_trans_time", concat(col("trans_date"), lit(" "), col("trans_time")).cast("timestamp"))
 df = df.withColumn("day_of_week", date_format(col("trans_date_trans_time"), "E"))
 df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
 
@@ -85,17 +89,25 @@ df = df.withColumn(
 
 df = df.withColumn("possible_fraud_high_value", (col("amt") > 10000).cast("integer"))
 
-# Criar janela de detecção de transações rápidas
+# 📊 Criar janela para detecção de transações rápidas
 window_spec_time = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
 df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec_time))
 df = df.withColumn("possible_fraud_fast_transactions", (col("time_diff") < 10).cast("integer"))
 
-# Criar diretório de saída se não existir
-if not os.path.exists(PROCESSED_DATA_DIR):
-    os.makedirs(PROCESSED_DATA_DIR)
+# 🚀 Configurar compressão e particionamento
+compression_codec = config.get("compression", "snappy")
+spark.conf.set("spark.sql.parquet.compression.codec", compression_codec)
+partition_keys = config.get("partition_keys", ["category"])
 
-# Salvar os dados processados em Parquet
-df.write.mode("overwrite").partitionBy("category").parquet(PROCESSED_DATA_DIR)
+# 📂 Criar diretório de saída se for local
+if not IS_AWS and not os.path.exists(OUTPUT_PATH):
+    os.makedirs(OUTPUT_PATH)
 
-print("✅ ETL Finalizado com Sucesso!")
+# 💾 Salvar dados processados
+logger.info("📂 Salvando dados processados...")
+df.write.mode("overwrite").partitionBy(*partition_keys).parquet(OUTPUT_PATH)
+logger.info("✅ Dados processados salvos com sucesso!")
+
+# 🚀 Encerrar sessão
 spark.stop()
+logger.info("🚀 ETL Finalizado!")
