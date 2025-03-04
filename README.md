@@ -1,105 +1,116 @@
-# AWS Glue & PySpark ETL
+# **AWS Glue & PySpark ETL**
 
-## 📌 Objetivo
-Este projeto implementa um **pipeline de ETL escalável** usando **AWS Glue e PySpark** para processamento, transformação e validação de dados transacionais. O pipeline garante qualidade, consistência e eficiência no tratamento de grandes volumes de dados, aplicando técnicas avançadas para **limpeza, remoção de outliers, validação de schema e enriquecimento dos dados**. Além disso, agora exploramos **otimização de consultas SQL**, **análises avançadas com Python** e **visualização interativa de dados com Power BI**.
+## 📌 **Objetivo**
+Este projeto implementa um **pipeline de ETL escalável** usando **AWS Glue e PySpark** para processamento, transformação e validação de dados transacionais.  
 
-## 🔹 Fonte dos Dados
-Os dados utilizados neste projeto são provenientes de um dataset público disponibilizado pelo Kaggle, referente a **transações financeiras sintéticas**. O dataset foi gerado através da ferramenta **Sparkov Data Generation**, simulando transações de janeiro a dezembro de 2023.
+Além das etapas tradicionais de ETL, este projeto se destaca por:  
+✅ **Otimização de consultas SQL e PySpark** para melhor performance.  
+✅ **Comparação entre diferentes abordagens** (SQL puro vs. PySpark vs. Delta Lake).  
+✅ **Criação de um dataset otimizado para Power BI** e análise de fraudes financeiras.  
+✅ **Execução do ETL validada tanto no VS Code (Spark Standalone) quanto no Jupyter.**  
 
-### 📌 Link para o dataset:
+---
+
+## 🔹 **Fonte dos Dados**
+Os dados vêm de um dataset público do Kaggle, gerado pelo **Sparkov Data Generation**, simulando transações financeiras de **janeiro a dezembro de 2023**.
+
+### 📌 **Dataset**:
 [Kaggle - Fraude em Transações de Cartão de Crédito](https://www.kaggle.com/competitions/fraude-em-transaes-de-carto-de-crdito/data)
 
-O dataset contém informações como:
-- **Dados da transação** (data, valor, comerciante, categoria, localização, etc.).
-- **Informações do titular do cartão** (nome, endereço, gênero, profissão, etc.).
-- **Indicador de fraude (`is_fraud`)** para identificar transações fraudulentas.
+**Principais colunas:**
+- **Dados da transação:** Data, valor (`amt`), comerciante (`merchant`), categoria (`category`).
+- **Dados do cliente:** Nome, localização, gênero, profissão.
+- **Sinalizador de fraude (`is_fraud`).**
 
-## 🔹 Tecnologias Utilizadas
-- **AWS Glue**: Para processamento e transformação de dados em grande escala.
-- **PySpark**: Para manipulação e transformação eficiente dos dados.
-- **AWS S3**: Para armazenamento dos dados brutos e processados.
-- **SQL**: Para análise e validação de qualidade dos dados.
-- **Jupyter Notebooks**: Para exploração e visualização dos dados.
-- **Power BI**: Para construção de dashboards interativos.
+---
 
-## 🚀 Pipeline de ETL e Análises
-1. **Extração**: Carregamento do dataset público armazenado no **S3**.
-2. **Transformação**:
-   - Remoção de **valores nulos e duplicados** com base em regras de negócio.
-   - **Validação da estrutura do dataset** de acordo com um schema predefinido (`config/schema.json`).
-   - **Detecção e tratamento de outliers** usando **Z-score**.
-   - **Criação de novas colunas** para facilitar análises (dia da semana, horário da transação, etc.).
-   - Cálculo de **estatísticas descritivas** (média, mediana, desvio padrão, distribuição de valores faltantes).
-   - Normalização de colunas para padronização dos dados.
-3. **Otimização de Consultas SQL**:
-   - Comparação entre **SQL puro, PySpark e Delta Lake**.
-   - Testes de performance e eficiência nas consultas.
-4. **Carga e Visualização**:
-   - Salvamento do dataset transformado no S3 e banco de dados.
-   - Integração com **Power BI** para construção de dashboards interativos.
+## 🔹 **Tecnologias Utilizadas**
+💾 **Processamento e Transformação**  
+✅ **AWS Glue & PySpark** → Para manipulação de grandes volumes de dados.  
+✅ **SQL (AWS Athena)** → Para consultas eficientes e validação de dados.  
 
-## 🔹 Regras de Negócio Aplicadas
-Durante o pipeline ETL, foram aplicadas regras para garantir a **qualidade dos dados e detecção de possíveis fraudes**:
+📊 **Análise e Visualização**  
+✅ **Jupyter Notebook** → Para análise exploratória e experimentação com consultas otimizadas.  
+✅ **Power BI** → Para construção de **dashboards interativos** sobre fraudes.  
 
-### **1️⃣ Tratamento de Valores Nulos**
-| Coluna | Regra |
-|--------|-------|
-| `cc_num` (Cartão) | 🚨 **Obrigatório** – Remover registros sem número de cartão. |
-| `amt` (Valor) | 🚨 **Obrigatório** – Transações sem valor devem ser descartadas. |
-| `merchant` (Comerciante) | 🔹 **Opcional** – Se vazio, preencher com "Desconhecido". |
-| `city`, `state` | 🔹 **Opcional** – Se vazios, preencher com "Não informado". |
-| `lat`, `long` | 🔹 **Opcional** – Se vazios, preencher com `0.0`. |
-| `is_fraud` (Fraude) | 🚨 **Obrigatório** – Se `null`, o registro deve ser descartado. |
+🚀 **Armazenamento e Integração**  
+✅ **AWS S3** → Para armazenamento eficiente dos dados.  
+✅ **Parquet & Delta Lake** → Formatos otimizados para leitura rápida no Power BI.  
 
-### **2️⃣ Detecção e Remoção de Outliers**
-| Coluna | Regra |
-|--------|-------|
-| `amt` (Valor) | 🚨 **Remover transações fora de 3 desvios padrão (Z-score).** |
-| `city_pop` (População) | 🚨 **Remover registros com `city_pop < 100` (cidades não realistas).** |
+---
 
-### **3️⃣ Regras de Detecção de Fraudes**
-| Critério | Regra |
-|----------|-------|
-| **Transações acima de $10,000** | 🚨 **Alerta de possível fraude** |
-| **Mesma pessoa comprando em estados diferentes no mesmo dia** | 🚨 **Alerta de possível fraude** |
-| **Múltiplas transações no mesmo comerciante em menos de 10 segundos** | 🚨 **Alerta de possível fraude** |
+## 🚀 **Pipeline de ETL e Otimizações**
+🔹 **1️⃣ Extração** → Carregamento do dataset bruto (CSV).  
+🔹 **2️⃣ Transformação (ETL no PySpark)**
+   - **Remoção de nulos e duplicatas.**
+   - **Detecção e remoção de outliers com Z-score.**
+   - **Conversão do schema para garantir consistência (ex: FLOAT → DOUBLE).**
+   - **Criação de novas colunas úteis (hora, período do dia, tempo entre transações).**
+   - **Comparação entre SQL puro, PySpark e Delta Lake.**
+🔹 **3️⃣ Salvamento e Otimização**
+   - **Formato Parquet** → Arquivo leve e eficiente para análise.
+   - **Delta Lake** → Para suporte a updates incrementais.
+   - **Comparação entre modos de escrita e impacto na performance.**
+🔹 **4️⃣ Análise e Relatórios**
+   - **Dashboards no Power BI** conectados diretamente ao dataset otimizado.
 
-## 🔹 Estrutura do Projeto
-```
-aws-glue-pyspark-etl/
-├── data/                          # Dados brutos e processados (não versionados)
-├── notebooks/                     # Jupyter Notebooks com SQL + Python
-│   ├── 01_data_exploration.ipynb  # Análise exploratória inicial
-│   ├── 02_etl_processing.ipynb    # Pipeline de ETL no PySpark
-│   ├── 03_sql_optimization.ipynb  # Comparação de SQL puro x PySpark
-│   ├── 04_power_bi_integration.ipynb  # Transformação de dados para Power BI
-├── scripts/                       # Código fonte em Python
-├── sql/                           # Consultas SQL otimizadas
-├── power_bi/                      # Dashboard Power BI
-├── docs/                          # Documentação adicional
-├── config/
-│   ├── schema.json  # Definição do schema para validação de dados
-│   ├── settings.yaml #Configurações gerais
-└── README.md                      # Documentação principal do projeto
-```
+---
 
-## 📊 Resultados e Análises
-- **Estatísticas descritivas antes e depois da transformação.**
-- **Otimização de consultas SQL e comparação de performance.**
-- **Dashboards interativos para análise de fraudes.**
-- **Validação da qualidade dos dados pós-ETL.**
+## 📊 **Otimização de Consultas SQL e PySpark**
+- **🔥 Teste de performance:** Tempo de execução com SQL puro vs. PySpark.
+- **📈 Estratégias aplicadas para reduzir tempo de leitura:**
+  ✅ **Conversão de FLOAT para DOUBLE** antes do salvamento em Parquet.  
+  ✅ **Uso de particionamento inteligente** (`partitionBy("category")`).  
+  ✅ **Reparticionamento do DataFrame para paralelismo eficiente** (`df.repartition(4)`).  
+  ✅ **Comparação entre Parquet e Delta Lake** em termos de eficiência.  
 
-## 📔 Notebooks Criados
-1. **01_data_exploration.ipynb** → Análise exploratória e estatísticas iniciais.
-2. **02_etl_processing.ipynb** → Implementação do pipeline ETL no PySpark.
-3. **03_sql_optimization.ipynb** → Comparação entre SQL puro e PySpark, otimizando queries.
-4. **04_power_bi_integration.ipynb** → Preparação de dados para visualização no Power BI.
+---
 
-## 🔄 Próximos Passos
-- Implementar **estrutura de particionamento** para otimizar queries.
-- Criar dashboards com **Power BI** para visualização de padrões de fraude.
-- Adicionar **testes automatizados** de qualidade dos dados.
-- Integrar com **AWS Lambda** para execução automatizada do ETL.
+## 🔹 **Formato do Arquivo Final para Power BI**
+| Formato | Motivo |
+|---------|--------|
+| **Parquet** | 🚀 Compactação melhor e leitura rápida no Power BI. |
+| **Delta Lake** | 🔄 Permite atualizações incrementais nos dados. |
+| **CSV** | ❌ Não utilizado, pois ocupa mais espaço e tem leitura lenta. |
 
-🚀 Desenvolvido por [Viviana](https://github.com/vivinfor)
+📌 **Decisão final:**  
+- O **Parquet foi escolhido** para o dataset final devido à **eficiência de leitura** no Power BI.  
+- Caso seja necessário **atualizações incrementais**, a versão **Delta Lake** pode ser ativada.
 
+---
+
+## 🔹 **Estrutura do Projeto**
+
+aws-glue-pyspark-etl/ ├── data/ # Dados brutos e processados ├── notebooks/ # Jupyter Notebook para análise exploratória │ ├── 01_data_exploration.ipynb # Análise exploratória, otimização e insights ├── scripts/ # Código ETL em Python (VS Code) ├── power_bi/ # Dashboard Power BI ├── config/ │ ├── schema.json # Definição do schema dos dados │ ├── settings.yaml # Configurações gerais └── README.md # Documentação do projeto
+
+
+---
+
+## 📊 **Resultados e Insights**
+✅ **Melhoria de performance nas consultas** após conversão e otimização.  
+✅ **Arquivos otimizados em Parquet**, reduzindo tempo de carregamento no Power BI.  
+✅ **Dashboards interativos** analisando padrões de fraudes em transações.  
+
+🚀 **Técnicas aplicadas para acelerar consultas**  
+- **Particionamento correto dos dados** (`partitionBy("category")`).  
+- **Uso de formatos eficientes** para integração com Power BI.  
+- **Comparação de estratégias de escrita e impacto na performance.**  
+
+---
+
+## 📔 **Notebooks Criados**
+1. **01_data_exploration.ipynb** → **Exploração, validação e otimização do dataset**.  
+
+📌 **Diferente de projetos convencionais**, **toda a etapa de ETL foi validada no VS Code** para garantir um fluxo de dados escalável e eficiente, enquanto **o notebook foca na análise e otimização de consultas para exploração dos dados**.
+
+---
+
+## 🔄 **Próximos Passos**
+✅ **Testar Delta Lake para atualização incremental.**  
+✅ **Criar um relatório mais avançado no Power BI.**  
+✅ **Adicionar logs e monitoramento da performance do ETL.**  
+✅ **Testar diferentes tamanhos de partições e impacto no carregamento do Power BI.**  
+
+---
+
+📌 **Desenvolvido por** [Viviana](https://github.com/vivinfor)  
