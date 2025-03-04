@@ -1,7 +1,7 @@
 import os
 import time
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, count, avg, max, min
+from pyspark.sql.functions import max, min
 
 # Criar sessão Spark
 spark = SparkSession.builder \
