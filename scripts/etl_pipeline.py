@@ -2,22 +2,24 @@ import os
 import yaml
 import logging
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, when, date_format, unix_timestamp, lag, concat, lit, mean, stddev
+from pyspark.sql.functions import (
+    col, when, date_format, unix_timestamp, lag, concat, lit, mean, stddev
+)
 from pyspark.sql.window import Window
 
-# Configurar logging
-logging.basicConfig(level=logging.INFO)
+# 📌 Configurar logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-
-import os
-import yaml
 
 # 📂 Carregar Configuração do YAML
 config_path = os.path.abspath("config/config.yaml")
+if not os.path.exists(config_path):
+    raise FileNotFoundError("❌ Arquivo 'config.yaml' não encontrado!")
+
 with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
-# Definir ambiente (Local ou AWS)
+# 📂 Definir ambiente (Local ou AWS)
 IS_AWS = config.get("environment") == "aws"
 
 # 📂 Definir caminhos de entrada e saída
@@ -28,11 +30,10 @@ else:
     INPUT_PATH = os.path.abspath(config.get("raw_data_path"))
     OUTPUT_PATH = os.path.abspath(config.get("data_path"))
 
-print(f"📂 Caminho de entrada: {INPUT_PATH}")
-print(f"📂 Caminho de saída: {OUTPUT_PATH}")
+logger.info(f"📂 Caminho de entrada: {INPUT_PATH}")
+logger.info(f"📂 Caminho de saída: {OUTPUT_PATH}")
 
-
-# Criar sessão Spark
+# 📌 Criar sessão Spark
 if IS_AWS:
     from awsglue.context import GlueContext
     from awsglue.dynamicframe import DynamicFrame
@@ -42,12 +43,24 @@ if IS_AWS:
     spark = glueContext.spark_session
     logger.info("🚀 Executando no AWS Glue.")
 else:
-    spark = SparkSession.builder.appName("ETL Pipeline").getOrCreate()
+    spark = SparkSession.builder \
+        .appName("ETL Pipeline") \
+        .config("spark.sql.parquet.compression.codec", "snappy") \  # Habilitar compressão otimizada
+        .config("spark.sql.files.maxPartitionBytes", "128MB") \  # Ajustar tamanho de partições
+        .getOrCreate()
     logger.info("💻 Executando localmente no PySpark.")
 
-# 📂 Carregar os dados
-logger.info("📂 Carregando dados...")
-df = spark.read.csv(INPUT_PATH, header=True, inferSchema=True, sep="|")
+# 📂 Listar arquivos CSV válidos
+csv_files = [f for f in os.listdir(INPUT_PATH) if f.endswith(".csv") and "exemplo_submissao" not in f]
+if not csv_files:
+    raise FileNotFoundError(f"❌ Nenhum arquivo CSV válido encontrado em '{INPUT_PATH}'.")
+
+# 📌 Selecionar o primeiro arquivo
+INPUT_FILE = os.path.join(INPUT_PATH, csv_files[0])
+logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
+
+# 📌 Carregar os dados
+df = spark.read.csv(INPUT_FILE, header=True, inferSchema=True, sep="|")
 logger.info(f"✅ Total de registros carregados: {df.count()}")
 
 # 🔄 Remover duplicatas
@@ -66,7 +79,7 @@ df = df.fillna({
     "long": 0.0
 })
 
-# 🧹 **Filtrar Outliers com Z-score** (caso habilitado)
+# 🔹 Aplicar filtro de outliers com Z-score (caso ativado)
 if config.get("use_z_score_filter", False):
     logger.info("🚀 Aplicando filtro de outliers (Z-score)...")
     window_spec = Window.partitionBy("category").orderBy("amt")
@@ -94,7 +107,7 @@ window_spec_time = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_
 df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec_time))
 df = df.withColumn("possible_fraud_fast_transactions", (col("time_diff") < 10).cast("integer"))
 
-# 🚀 Configurar compressão e particionamento
+# 🔹 Configurar compressão e particionamento
 compression_codec = config.get("compression", "snappy")
 spark.conf.set("spark.sql.parquet.compression.codec", compression_codec)
 partition_keys = config.get("partition_keys", ["category"])
