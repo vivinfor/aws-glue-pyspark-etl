@@ -82,15 +82,16 @@ Os dados vêm de um dataset público do Kaggle, gerado pelo **Sparkov Data Gener
 ## 👉 Estrutura do Projeto
 
 aws-glue-pyspark-etl/
-├── data/               # Dados brutos e processados
-├── notebooks/          # Jupyter Notebook para análise exploratória
+├── data/                  # Dados brutos e processados
+├── notebooks/             # Jupyter Notebook para análise exploratória
 │   ├── 01_data_exploration.ipynb  # Análise exploratória, otimização e insights
-├── scripts/            # Código ETL em Python (VS Code)
-├── power_bi/           # Dashboard Power BI
-├── config/
-│   ├── schema.json     # Definição do schema dos dados
-│   ├── settings.yaml   # Configurações gerais
-└── README.md   
+├── scripts/               # Código ETL em Python (VS Code)
+├── power_bi/              # Dashboard Power BI
+├── config/                
+│   ├── schema.json        # Definição do schema dos dados
+│   ├── settings.yaml      # Configurações gerais
+└── README.md              # Documentação do projeto
+
 
 ## 📚 Regras de Negócio
 
