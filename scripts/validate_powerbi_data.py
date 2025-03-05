@@ -25,8 +25,13 @@ if not parquet_files:
 
 print(f"✅ {len(parquet_files)} arquivos Parquet encontrados.")
 
-# 📌 Carregar os arquivos Parquet no Pandas
-df_list = [pq.read_table(file).to_pandas() for file in parquet_files]
+# 📌 Ler todos os Parquets e consolidar no Pandas
+df_list = []
+for file in parquet_files:
+    print(f"📂 Lendo: {file}")
+    df_list.append(pq.read_table(file).to_pandas())
+
+# 🔄 Concatenar todos os DataFrames
 df = pd.concat(df_list, ignore_index=True)
 
 # 📊 Exibir estatísticas básicas
@@ -34,4 +39,11 @@ print(df.head())
 print(df.describe())
 print(df.dtypes)
 
-print("🚀 Validação concluída!")
+# 📂 Definir caminho para o CSV final
+CSV_OUTPUT_PATH = os.path.abspath("data/powerbi_data.csv")
+
+# 🚀 Salvar como CSV
+df.to_csv(CSV_OUTPUT_PATH, index=False, encoding="utf-8")
+print(f"✅ Arquivo CSV salvo em: {CSV_OUTPUT_PATH}")
+
+print("🚀 Processo concluído!")
