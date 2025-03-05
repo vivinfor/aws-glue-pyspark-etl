@@ -3,9 +3,9 @@ import yaml
 import shutil
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col
-from pyspark.sql.types import DoubleType
+from pyspark.sql.types import DoubleType, StringType
 
-# Carregar Configuração do YAML
+# 📂 Carregar Configuração do YAML
 config_path = os.path.abspath("config/config.yaml")
 print(f"📂 Tentando carregar: {config_path}")
 
@@ -16,7 +16,7 @@ if os.path.exists(config_path):
 else:
     raise FileNotFoundError("❌ Arquivo 'config.yaml' não encontrado!")
 
-# Definir caminhos usando o config.yaml
+# 📂 Definir caminhos usando o config.yaml
 PROCESSED_DATA_DIR = os.path.normpath(config.get("data_path", "data/processed/"))
 OPTIMIZED_DATA_DIR = os.path.normpath(config.get("optimized_data_path", "data/optimized/"))
 
@@ -28,21 +28,20 @@ if not os.path.isabs(OPTIMIZED_DATA_DIR):
 print(f"📂 Diretório de dados processados: {PROCESSED_DATA_DIR}")
 print(f"📂 Diretório de dados otimizados: {OPTIMIZED_DATA_DIR}")
 
-# Criar sessão Spark
-spark = SparkSession.builder \
-    .appName("Save Optimized Data") \
-    .getOrCreate()
+# 🚀 Criar sessão Spark
+spark = SparkSession.builder.appName("Save Optimized Data").getOrCreate()
 
 # 📌 Ler os dados processados
 print("📂 Carregando dados processados...")
 df = spark.read.parquet(PROCESSED_DATA_DIR)
 print(f"✅ Total de registros carregados: {df.count()}")
 
-# 📌 Garantir que 'amt' esteja no tipo correto
+# ✅ **Correção: Garantir que 'amt' e 'day_of_week' estão no tipo correto**
 df = df.withColumn("amt", col("amt").cast(DoubleType()))
-print("🔄 Conversão aplicada ao campo 'amt'")
+df = df.withColumn("day_of_week", col("day_of_week").cast(StringType()))  # 🔥 Correção principal
+print("🔄 Conversão aplicada aos campos 'amt' e 'day_of_week'")
 
-# 📌 Criar diretório otimizado (remover se existir)
+# 🗑️ Criar diretório otimizado (remover se existir)
 if os.path.exists(OPTIMIZED_DATA_DIR):
     shutil.rmtree(OPTIMIZED_DATA_DIR)
     print(f"🗑️ Diretório removido: {OPTIMIZED_DATA_DIR}")
@@ -54,7 +53,7 @@ print(f"📂 Diretório recriado: {OPTIMIZED_DATA_DIR}")
 df.write.mode("overwrite").partitionBy("category").parquet(OPTIMIZED_DATA_DIR)
 print("✅ Dados otimizados salvos com sucesso!")
 
-# 📌 Testar leitura do dataset salvo
+# 📂 Testar leitura do dataset salvo
 print("📂 Testando leitura dos dados otimizados...")
 df_test = spark.read.parquet(OPTIMIZED_DATA_DIR)
 print(f"✅ Registros lidos: {df_test.count()}")
