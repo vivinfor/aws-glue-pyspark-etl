@@ -89,7 +89,12 @@ if config.get("use_z_score_filter", False):
 
 # 🔹 Criar colunas adicionais
 df = df.withColumn("trans_date_trans_time", concat(col("trans_date"), lit(" "), col("trans_time")).cast("timestamp"))
-df = df.withColumn("day_of_week", date_format(col("trans_date_trans_time"), "E"))
+df = df.withColumn(
+    "day_of_week",
+    when(col("trans_date_trans_time").isNotNull(), date_format(col("trans_date_trans_time"), "E"))
+    .otherwise(lit("Unknown"))
+)
+
 df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
 
 df = df.withColumn(
@@ -104,8 +109,14 @@ df = df.withColumn("possible_fraud_high_value", (col("amt") > 10000).cast("integ
 
 # 📊 Criar janela para detecção de transações rápidas
 window_spec_time = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
-df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec_time))
-df = df.withColumn("possible_fraud_fast_transactions", (col("time_diff") < 10).cast("integer"))
+df = df.withColumn("time_diff", 
+    unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec_time)
+)
+df = df.fillna({"time_diff": 0})  # Substitui NaN por 0
+
+df = df.withColumn("possible_fraud_fast_transactions", 
+    when(col("time_diff") < 10, 1).otherwise(0)
+)
 
 # 🔹 Configurar compressão e particionamento
 compression_codec = config.get("compression", "snappy")
