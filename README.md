@@ -90,7 +90,7 @@ aws-glue-pyspark-etl/
 ├── config/
 │   ├── schema.json     # Definição do schema dos dados
 │   ├── settings.yaml   # Configurações gerais
-└── README.md           # Documentação do projeto
+└── README.md   
 
 ## 📚 Regras de Negócio
 
