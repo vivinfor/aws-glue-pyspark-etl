@@ -79,18 +79,65 @@ Os dados vêm de um dataset público do Kaggle, gerado pelo **Sparkov Data Gener
 
 ---
 
-## 🔹 **Estrutura do Projeto**
+## 👉 Estrutura do Projeto
 
+```bash
 aws-glue-pyspark-etl/
-├── data/                          # Dados brutos e processados
-├── notebooks/                      # Jupyter Notebook para análise exploratória
-│   ├── 01_data_exploration.ipynb   # Análise exploratória, otimização e insights
-├── scripts/                        # Código ETL em Python (VS Code)
-├── power_bi/                        # Dashboard Power BI
-├── config/                         
-│   ├── schema.json                 # Definição do schema dos dados
-│   ├── settings.yaml                # Configurações gerais
-└── README.md                        # Documentação do projeto
+├── data/               # Dados brutos e processados
+├── notebooks/          # Jupyter Notebook para análise exploratória
+│   ├── 01_data_exploration.ipynb  # Análise exploratória, otimização e insights
+├── scripts/            # Código ETL em Python (VS Code)
+├── power_bi/           # Dashboard Power BI
+├── config/
+│   ├── schema.json     # Definição do schema dos dados
+│   ├── settings.yaml   # Configurações gerais
+└── README.md           # Documentação do projeto
+```
+---
+
+## 📚 Regras de Negócio
+
+As principais regras de negócio aplicadas neste projeto incluem:
+
+1. **Classificação de Transações**:  
+   - Transações são categorizadas automaticamente com base em padrões identificados nos dados históricos.
+   - O modelo de machine learning pode ser treinado para sugerir categorias para novas transações.
+
+2. **Detecção de Fraudes**:  
+   - Um pipeline de análise de fraudes identifica transações suspeitas com base em padrões de comportamento.
+   - Alertas são gerados para qualquer transação acima de um limiar estatístico.
+
+3. **Agregação de Dados por Categoria e Período**:  
+   - Os dados são particionados por `category` para facilitar consultas e otimizar o desempenho.
+   - Os usuários podem visualizar gastos agregados por período (diário, semanal, mensal).
+
+4. **Conversão de Moedas** *(se aplicável)*:  
+   - Para transações em diferentes moedas, são aplicadas taxas de conversão para padronizar os valores.
+
+5. **Dashboards Interativos para Tomada de Decisão**:  
+   - O Power BI é utilizado para criar **dashboards gerenciais** com análises detalhadas de transações e fraudes.
+   - KPIs principais incluem **gastos por categoria, evolução mensal de fraudes, e padrões de comportamento de clientes**.
+
+---
+
+## 📊 Visuais Planejados no Power BI
+
+Os seguintes dashboards serão criados no **Power BI** para análise dos dados:
+
+### **1️⃣ Análise de Gastos**
+- **Gráfico de barras empilhadas**: Gastos por categoria ao longo do tempo.
+- **Gráfico de linha**: Evolução dos gastos mensais por categoria.
+- **Cartão KPI**: Total gasto no período selecionado.
+
+### **2️⃣ Detecção de Fraudes**
+- **Mapa de calor**: Transações suspeitas por localização geográfica.
+- **Tabela dinâmica**: Listagem de transações fraudulentas com filtros interativos.
+- **Gráfico de dispersão**: Valores de transações vs. probabilidade de fraude.
+
+### **3️⃣ Perfil do Cliente**
+- **Gráfico de pizza**: Distribuição de gastos por gênero.
+- **Gráfico de colunas**: Faixas etárias e seus hábitos de consumo.
+- **Matriz dinâmica**: Cruzamento de profissões e comportamento de compra.
 
 ---
 
