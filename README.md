@@ -114,7 +114,6 @@ aws-glue-pyspark-etl/
 ---
 
 ## 🔄 **Próximos Passos**
-✅ **Testar Delta Lake para atualização incremental.**  
 ✅ **Criar um relatório mais avançado no Power BI.**  
 ✅ **Adicionar logs e monitoramento da performance do ETL.**  
 ✅ **Testar diferentes tamanhos de partições e impacto no carregamento do Power BI.**  
