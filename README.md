@@ -81,7 +81,6 @@ Os dados vêm de um dataset público do Kaggle, gerado pelo **Sparkov Data Gener
 
 ## 👉 Estrutura do Projeto
 
-```bash
 aws-glue-pyspark-etl/
 ├── data/               # Dados brutos e processados
 ├── notebooks/          # Jupyter Notebook para análise exploratória
@@ -92,8 +91,6 @@ aws-glue-pyspark-etl/
 │   ├── schema.json     # Definição do schema dos dados
 │   ├── settings.yaml   # Configurações gerais
 └── README.md           # Documentação do projeto
-```
----
 
 ## 📚 Regras de Negócio
 
