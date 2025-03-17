@@ -138,21 +138,34 @@ partition_keys = ["day_of_week", "transaction_period"]
 if not IS_AWS and not os.path.exists(OUTPUT_PATH):
     os.makedirs(OUTPUT_PATH)
 
-
-
-# 🔹 Verificar se 'trans_date' e 'trans_time' existem antes de processar
+# 🔍 Garantir que `trans_date_trans_time` existe e remover colunas antigas
 if "trans_date" in df.columns and "trans_time" in df.columns:
+    logger.info("🔄 Convertendo 'trans_date' e 'trans_time' para 'trans_date_trans_time'...")
+
+    # Criar a coluna corretamente
     df = df.withColumn(
         "trans_date_trans_time",
         to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss")
     )
 
+    # 🚀 Remover as colunas antigas para evitar conflito com o schema
     df = df.drop("trans_date", "trans_time")
 
+    logger.info("✅ Conversão concluída: 'trans_date_trans_time' criada com sucesso!")
 
-# 💾 Salvar dados processados com particionamento correto
+# 🔍 Garantir que o schema final está correto antes de salvar
+expected_schema = set(schema_json["fields"])  # Definir colunas esperadas do schema
+actual_columns = set(df.columns)  # Colunas do DataFrame
+
+# 🔥 Verificar se há colunas inesperadas
+unexpected_columns = actual_columns - expected_schema
+if unexpected_columns:
+    logger.warning(f"⚠️ Removendo colunas inesperadas: {unexpected_columns}")
+    df = df.drop(*unexpected_columns)  # Remover colunas que não estão no schema
+
+# 📂 Salvar dados processados
 logger.info("📂 Salvando dados processados...")
-df.write.mode("overwrite").partitionBy(*partition_keys).parquet(OUTPUT_PATH)
+df.write.mode("overwrite").partitionBy("day_of_week", "transaction_period").parquet(OUTPUT_PATH)
 logger.info("✅ Dados processados salvos com sucesso!")
 
 # 🚀 Encerrar sessão
