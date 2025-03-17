@@ -61,6 +61,9 @@ logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
 
 # 📌 Carregar os dados
 df = spark.read.csv(INPUT_FILE, header=True, inferSchema=True, sep="|")
+df.select("trans_date", "trans_time").show(10, truncate=False)
+df.printSchema()
+
 logger.info(f"✅ Total de registros carregados: {df.count()}")
 
 # 🔄 Remover duplicatas
