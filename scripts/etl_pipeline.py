@@ -3,7 +3,7 @@ import yaml
 import logging
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, when, date_format, unix_timestamp, lag, concat, lit, mean, stddev
+    col, when, date_format, unix_timestamp, lag, concat, lit, mean, stddev, to_date
 )
 from pyspark.sql.window import Window
 
@@ -87,14 +87,24 @@ if config.get("use_z_score_filter", False):
     df = df.filter(col("z_score").between(-3, 3)).drop("z_score")
     logger.info(f"📊 Registros após remoção de outliers: {df.count()}")
 
-# 🔹 Criar colunas adicionais
+# 🔹 Verificar valores problemáticos antes da conversão
 df.select("trans_date", "trans_time").summary("count", "min", "max").show()
 df.filter(col("trans_date").isNull() | col("trans_time").isNull()).show()
+
+# 🔹 Corrigir valores nulos antes da conversão para `trans_date_trans_time`
+df = df.withColumn("trans_date", when(col("trans_date").isNull(), lit("1900-01-01")).otherwise(col("trans_date")))
+df = df.withColumn("trans_time", when(col("trans_time").isNull(), lit("00:00:00")).otherwise(col("trans_time")))
+
+# 🔹 Garantir que `trans_date` esteja no formato correto
+df = df.withColumn("trans_date", to_date(col("trans_date"), "yyyy-MM-dd"))
+
+# 🔹 Criar colunas adicionais
 df = df.withColumn("trans_date_trans_time", concat(col("trans_date"), lit(" "), col("trans_time")).cast("timestamp"))
+
 df = df.withColumn(
     "day_of_week",
     when(col("trans_date_trans_time").isNotNull(), date_format(col("trans_date_trans_time"), "E"))
-    .otherwise(lit("Unknown"))
+    .otherwise(lit("Erro - Data Inválida"))
 )
 
 df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
@@ -123,7 +133,7 @@ df = df.withColumn("possible_fraud_fast_transactions",
 # 🔹 Configurar compressão e particionamento
 compression_codec = config.get("compression", "snappy")
 spark.conf.set("spark.sql.parquet.compression.codec", compression_codec)
-partition_keys = config.get("partition_keys", ["category"])
+partition_keys = config.get("partition_keys", ["day_of_week", "transaction_period"])
 
 # 📂 Criar diretório de saída se for local
 if not IS_AWS and not os.path.exists(OUTPUT_PATH):
