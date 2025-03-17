@@ -85,16 +85,20 @@ df = spark.read.option("sep", "|").csv(INPUT_FILE, header=True, schema=schema)
 # 🔹 Exibir nomes das colunas carregadas
 logger.info(f"📊 Colunas carregadas: {df.columns}")
 
-# 🔹 Se `trans_date_trans_time` já existe, não tentar recriá-la
-if "trans_date_trans_time" not in df.columns:
-    # Verificar se `trans_date` e `trans_time` existem
-    if "trans_date" in df.columns and "trans_time" in df.columns:
-        df = df.withColumn(
-            "trans_date_trans_time",
-            to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss")
-        )
-    else:
-        raise ValueError("❌ As colunas 'trans_date' e 'trans_time' não foram carregadas corretamente!")
+# 🔍 Verificar se 'trans_date' e 'trans_time' existem antes de processar
+if "trans_date" in df.columns and "trans_time" in df.columns:
+    logger.info("🔄 Convertendo 'trans_date' e 'trans_time' para 'trans_date_trans_time'...")
+    
+    # Criar a coluna `trans_date_trans_time`
+    df = df.withColumn(
+        "trans_date_trans_time",
+        to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss")
+    )
+
+    # 🔥 Remover as colunas antigas para evitar conflito
+    df = df.drop("trans_date", "trans_time")
+    
+    logger.info("✅ Conversão concluída: 'trans_date_trans_time' criada com sucesso!")
 
 # 🔹 Criar `day_of_week`
 df = df.withColumn(
