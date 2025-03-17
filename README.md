@@ -121,24 +121,9 @@ As principais regras de negócio aplicadas neste projeto incluem:
 
 ---
 
-## 📊 Visuais Planejados no Power BI
+## 📊 Visuais Construídos no Power BI
 
-Os seguintes dashboards serão criados no **Power BI** para análise dos dados:
-
-### **1️⃣ Análise de Gastos**
-- **Gráfico de barras empilhadas**: Gastos por categoria ao longo do tempo.
-- **Gráfico de linha**: Evolução dos gastos mensais por categoria.
-- **Cartão KPI**: Total gasto no período selecionado.
-
-### **2️⃣ Detecção de Fraudes**
-- **Mapa de calor**: Transações suspeitas por localização geográfica.
-- **Tabela dinâmica**: Listagem de transações fraudulentas com filtros interativos.
-- **Gráfico de dispersão**: Valores de transações vs. probabilidade de fraude.
-
-### **3️⃣ Perfil do Cliente**
-- **Gráfico de pizza**: Distribuição de gastos por gênero.
-- **Gráfico de colunas**: Faixas etárias e seus hábitos de consumo.
-- **Matriz dinâmica**: Cruzamento de profissões e comportamento de compra.
+![image](https://github.com/user-attachments/assets/defade79-ecd3-47af-80fe-15ccdf24e456)
 
 ---
 
@@ -162,7 +147,6 @@ Os seguintes dashboards serão criados no **Power BI** para análise dos dados:
 ---
 
 ## 🔄 **Próximos Passos**
-✅ **Criar um relatório mais avançado no Power BI.**  
 ✅ **Adicionar logs e monitoramento da performance do ETL.**  
 ✅ **Testar diferentes tamanhos de partições e impacto no carregamento do Power BI.**  
 
