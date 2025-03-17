@@ -3,9 +3,10 @@ import yaml
 import logging
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, when, date_format, unix_timestamp, lag, concat, lit, mean, stddev, to_date
+    col, when, date_format, unix_timestamp, lag, concat, lit, mean, stddev, to_date, to_timestamp
 )
 from pyspark.sql.window import Window
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
 # 📌 Configurar logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -59,8 +60,38 @@ if not csv_files:
 INPUT_FILE = os.path.join(INPUT_PATH, csv_files[0])
 logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
 
-# 📌 Carregar os dados
-df = spark.read.csv(INPUT_FILE, header=True, inferSchema=True, sep="|")
+# 📌 Definir esquema correto para leitura do CSV
+schema = StructType([
+    StructField("ssn", StringType(), True),
+    StructField("cc_num", StringType(), True),
+    StructField("first", StringType(), True),
+    StructField("last", StringType(), True),
+    StructField("gender", StringType(), True),
+    StructField("street", StringType(), True),
+    StructField("city", StringType(), True),
+    StructField("state", StringType(), True),
+    StructField("zip", StringType(), True),
+    StructField("lat", DoubleType(), True),
+    StructField("long", DoubleType(), True),
+    StructField("city_pop", IntegerType(), True),
+    StructField("job", StringType(), True),
+    StructField("dob", StringType(), True),
+    StructField("acct_num", StringType(), True),
+    StructField("profile", StringType(), True),
+    StructField("trans_num", StringType(), True),
+    StructField("trans_date", StringType(), True),  # 🚀 Garantindo que seja STRING
+    StructField("trans_time", StringType(), True),  # 🚀 Garantindo que seja STRING
+    StructField("unix_time", StringType(), True),
+    StructField("category", StringType(), True),
+    StructField("amt", DoubleType(), True),
+    StructField("is_fraud", IntegerType(), True),
+    StructField("merchant", StringType(), True),
+    StructField("merch_lat", DoubleType(), True),
+    StructField("merch_long", DoubleType(), True),
+])
+
+# 📌 Carregar os dados com o esquema correto
+df = spark.read.csv(INPUT_FILE, header=True, schema=schema, sep="|")
 df.select("trans_date", "trans_time").show(10, truncate=False)
 df.printSchema()
 
@@ -90,19 +121,8 @@ if config.get("use_z_score_filter", False):
     df = df.filter(col("z_score").between(-3, 3)).drop("z_score")
     logger.info(f"📊 Registros após remoção de outliers: {df.count()}")
 
-# 🔹 Verificar valores problemáticos antes da conversão
-df.select("trans_date", "trans_time").summary("count", "min", "max").show()
-df.filter(col("trans_date").isNull() | col("trans_time").isNull()).show()
-
-# 🔹 Corrigir valores nulos antes da conversão para `trans_date_trans_time`
-df = df.withColumn("trans_date", when(col("trans_date").isNull(), lit("1900-01-01")).otherwise(col("trans_date")))
-df = df.withColumn("trans_time", when(col("trans_time").isNull(), lit("00:00:00")).otherwise(col("trans_time")))
-
-# 🔹 Garantir que `trans_date` esteja no formato correto
-df = df.withColumn("trans_date", to_date(col("trans_date"), "yyyy-MM-dd"))
-
-# 🔹 Criar colunas adicionais
-df = df.withColumn("trans_date_trans_time", concat(col("trans_date"), lit(" "), col("trans_time")).cast("timestamp"))
+# 🔹 Criar colunas adicionais corretamente
+df = df.withColumn("trans_date_trans_time", to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss"))
 
 df = df.withColumn(
     "day_of_week",
