@@ -85,21 +85,16 @@ df = spark.read.option("sep", "|").csv(INPUT_FILE, header=True, schema=schema)
 # 🔹 Exibir nomes das colunas carregadas
 logger.info(f"📊 Colunas carregadas: {df.columns}")
 
-# 🔹 Verificar se `trans_date` e `trans_time` existem no DataFrame
-expected_columns = ["trans_date", "trans_time"]
-for col_name in expected_columns:
-    if col_name not in df.columns:
-        logger.warning(f"⚠️ Coluna '{col_name}' não encontrada! Verificando nomes similares...")
-        possible_match = [c for c in df.columns if col_name.lower() in c.lower()]
-        if possible_match:
-            df = df.withColumnRenamed(possible_match[0], col_name)
-            logger.info(f"✅ Coluna '{possible_match[0]}' renomeada para '{col_name}'.")
-
-# 🔹 Garantir conversão correta da data/hora para `timestamp`
-if "trans_date" in df.columns and "trans_time" in df.columns:
-    df = df.withColumn("trans_date_trans_time", to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss"))
-else:
-    raise ValueError("❌ Colunas 'trans_date' e 'trans_time' não foram carregadas corretamente!")
+# 🔹 Se `trans_date_trans_time` já existe, não tentar recriá-la
+if "trans_date_trans_time" not in df.columns:
+    # Verificar se `trans_date` e `trans_time` existem
+    if "trans_date" in df.columns and "trans_time" in df.columns:
+        df = df.withColumn(
+            "trans_date_trans_time",
+            to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss")
+        )
+    else:
+        raise ValueError("❌ As colunas 'trans_date' e 'trans_time' não foram carregadas corretamente!")
 
 # 🔹 Criar `day_of_week`
 df = df.withColumn(
