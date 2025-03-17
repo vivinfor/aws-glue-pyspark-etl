@@ -134,6 +134,18 @@ partition_keys = ["day_of_week", "transaction_period"]
 if not IS_AWS and not os.path.exists(OUTPUT_PATH):
     os.makedirs(OUTPUT_PATH)
 
+
+
+# 🔹 Verificar se 'trans_date' e 'trans_time' existem antes de processar
+if "trans_date" in df.columns and "trans_time" in df.columns:
+    df = df.withColumn(
+        "trans_date_trans_time",
+        to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss")
+    )
+
+    df = df.drop("trans_date", "trans_time")
+
+
 # 💾 Salvar dados processados com particionamento correto
 logger.info("📂 Salvando dados processados...")
 df.write.mode("overwrite").partitionBy(*partition_keys).parquet(OUTPUT_PATH)
