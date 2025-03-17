@@ -13,7 +13,7 @@ from pyspark.sql.types import StructType, StructField, StringType, DoubleType, I
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# 📂 Carregar Configuração do YAML
+# 📂 Carregar Configuração do YAML e Schema
 config_path = os.path.abspath("config/config.yaml")
 schema_path = os.path.abspath("config/schema.json")
 
@@ -42,7 +42,7 @@ def json_to_spark_schema(json_schema):
             spark_type = DoubleType()
         elif field_type == "int":
             spark_type = IntegerType()
-        elif field_type == "timestamp":  # 🔹 Agora suporta timestamp!
+        elif field_type == "timestamp":
             spark_type = TimestampType()
         else:
             raise ValueError(f"⚠️ Tipo de dado não suportado: {field_type}")
@@ -81,6 +81,19 @@ logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
 
 # 📌 Carregar CSV com schema correto
 df = spark.read.option("sep", "|").csv(INPUT_FILE, header=True, schema=schema)
+
+# 🔹 Exibir nomes das colunas carregadas
+logger.info(f"📊 Colunas carregadas: {df.columns}")
+
+# 🔹 Renomear colunas, se necessário
+expected_columns = ["trans_date", "trans_time"]
+for col_name in expected_columns:
+    if col_name not in df.columns:
+        logger.warning(f"⚠️ Coluna '{col_name}' não encontrada! Verificando nomes similares...")
+        possible_match = [c for c in df.columns if col_name.lower() in c.lower()]
+        if possible_match:
+            df = df.withColumnRenamed(possible_match[0], col_name)
+            logger.info(f"✅ Coluna '{possible_match[0]}' renomeada para '{col_name}'.")
 
 # 🔹 Garantir conversão correta da data/hora para `timestamp`
 df = df.withColumn("trans_date_trans_time", to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss"))
