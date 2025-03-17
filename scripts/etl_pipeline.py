@@ -154,7 +154,7 @@ if "trans_date" in df.columns and "trans_time" in df.columns:
     logger.info("✅ Conversão concluída: 'trans_date_trans_time' criada com sucesso!")
 
 # 🔍 Garantir que o schema final está correto antes de salvar
-expected_schema = set(schema_json["fields"])  # Definir colunas esperadas do schema
+expected_schema = {field["name"] for field in schema_json["fields"]}  # Extrair nomes das colunas do schema
 actual_columns = set(df.columns)  # Colunas do DataFrame
 
 # 🔥 Verificar se há colunas inesperadas
