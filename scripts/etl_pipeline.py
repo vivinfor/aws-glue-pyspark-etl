@@ -79,13 +79,13 @@ if not csv_files:
 INPUT_FILE = os.path.join(INPUT_PATH, csv_files[0])
 logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
 
-# 📌 Carregar CSV com schema correto
+# 📌 Carregar CSV com schema correto e verificar se `trans_time` foi carregada corretamente
 df = spark.read.option("sep", "|").csv(INPUT_FILE, header=True, schema=schema)
 
 # 🔹 Exibir nomes das colunas carregadas
 logger.info(f"📊 Colunas carregadas: {df.columns}")
 
-# 🔹 Renomear colunas, se necessário
+# 🔹 Verificar se `trans_date` e `trans_time` existem no DataFrame
 expected_columns = ["trans_date", "trans_time"]
 for col_name in expected_columns:
     if col_name not in df.columns:
@@ -96,7 +96,10 @@ for col_name in expected_columns:
             logger.info(f"✅ Coluna '{possible_match[0]}' renomeada para '{col_name}'.")
 
 # 🔹 Garantir conversão correta da data/hora para `timestamp`
-df = df.withColumn("trans_date_trans_time", to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss"))
+if "trans_date" in df.columns and "trans_time" in df.columns:
+    df = df.withColumn("trans_date_trans_time", to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss"))
+else:
+    raise ValueError("❌ Colunas 'trans_date' e 'trans_time' não foram carregadas corretamente!")
 
 # 🔹 Criar `day_of_week`
 df = df.withColumn(
