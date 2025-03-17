@@ -6,7 +6,7 @@ from pyspark.sql.functions import (
     col, when, date_format, unix_timestamp, lag, concat, lit, mean, stddev, to_date, to_timestamp
 )
 from pyspark.sql.window import Window
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType, TimestampType
 
 # 📌 Configurar logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -62,32 +62,29 @@ logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
 
 # 📌 Definir esquema correto para leitura do CSV
 schema = StructType([
-    StructField("ssn", StringType(), True),
-    StructField("cc_num", StringType(), True),
+    StructField("cc_num", StringType(), False),
+    StructField("merchant", StringType(), True),
+    StructField("category", StringType(), True),
+    StructField("amt", DoubleType(), False),
     StructField("first", StringType(), True),
     StructField("last", StringType(), True),
     StructField("gender", StringType(), True),
     StructField("street", StringType(), True),
     StructField("city", StringType(), True),
     StructField("state", StringType(), True),
-    StructField("zip", StringType(), True),
+    StructField("zip", IntegerType(), True),
     StructField("lat", DoubleType(), True),
     StructField("long", DoubleType(), True),
     StructField("city_pop", IntegerType(), True),
     StructField("job", StringType(), True),
     StructField("dob", StringType(), True),
-    StructField("acct_num", StringType(), True),
-    StructField("profile", StringType(), True),
-    StructField("trans_num", StringType(), True),
-    StructField("trans_date", StringType(), True),  # 🚀 Garantindo que seja STRING
-    StructField("trans_time", StringType(), True),  # 🚀 Garantindo que seja STRING
-    StructField("unix_time", StringType(), True),
-    StructField("category", StringType(), True),
-    StructField("amt", DoubleType(), True),
-    StructField("is_fraud", IntegerType(), True),
-    StructField("merchant", StringType(), True),
+    StructField("trans_num", StringType(), False),
+    StructField("unix_time", IntegerType(), False),
     StructField("merch_lat", DoubleType(), True),
     StructField("merch_long", DoubleType(), True),
+    StructField("is_fraud", IntegerType(), False),
+    StructField("trans_date", StringType(), True),
+    StructField("trans_time", StringType(), True),
 ])
 
 # 📌 Carregar os dados com o esquema correto
@@ -100,30 +97,20 @@ logger.info(f"✅ Total de registros carregados: {df.count()}")
 # 🔄 Remover duplicatas
 df = df.dropDuplicates()
 
-# 🚀 Remover registros com colunas críticas nulas
-df = df.na.drop(subset=["cc_num", "amt", "is_fraud"])
+# 🚀 Verificar valores nulos antes da remoção
+from pyspark.sql.functions import sum
+
+nulos = df.select([sum(col(c).isNull().cast("int")).alias(c) for c in df.columns])
+nulos.show()
+
+# 🚀 Remover registros com campos obrigatórios nulos
+df = df.na.drop(subset=["cc_num", "amt", "is_fraud", "trans_num", "unix_time", "trans_date", "trans_time"])
 logger.info(f"📊 Registros após remoção de valores nulos críticos: {df.count()}")
 
-# 🔹 Preencher valores nulos opcionais
-df = df.fillna({
-    "merchant": "Desconhecido",
-    "city": "Não informado",
-    "state": "Não informado",
-    "lat": 0.0,
-    "long": 0.0
-})
-
-# 🔹 Aplicar filtro de outliers com Z-score (caso ativado)
-if config.get("use_z_score_filter", False):
-    logger.info("🚀 Aplicando filtro de outliers (Z-score)...")
-    window_spec = Window.partitionBy("category").orderBy("amt")
-    df = df.withColumn("z_score", (col("amt") - mean(col("amt")).over(window_spec)) / stddev(col("amt")).over(window_spec))
-    df = df.filter(col("z_score").between(-3, 3)).drop("z_score")
-    logger.info(f"📊 Registros após remoção de outliers: {df.count()}")
-
-# 🔹 Criar colunas adicionais corretamente
+# 🔹 Garantir que `trans_date_trans_time` seja convertido corretamente
 df = df.withColumn("trans_date_trans_time", to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss"))
 
+# 🔹 Criar colunas adicionais
 df = df.withColumn(
     "day_of_week",
     when(col("trans_date_trans_time").isNotNull(), date_format(col("trans_date_trans_time"), "E"))
@@ -156,7 +143,7 @@ df = df.withColumn("possible_fraud_fast_transactions",
 # 🔹 Configurar compressão e particionamento
 compression_codec = config.get("compression", "snappy")
 spark.conf.set("spark.sql.parquet.compression.codec", compression_codec)
-partition_keys = config.get("partition_keys", ["day_of_week", "transaction_period"])
+partition_keys = ["day_of_week", "transaction_period"]
 
 # 📂 Criar diretório de saída se for local
 if not IS_AWS and not os.path.exists(OUTPUT_PATH):
