@@ -1,5 +1,6 @@
 {
     "fields": [
+        {"name": "ssn", "type": "string", "nullable": true},       
         {"name": "trans_date_trans_time", "type": "timestamp", "format": "yyyy-MM-dd HH:mm:ss", "nullable": false},
         {"name": "cc_num", "type": "string", "nullable": false},
         {"name": "merchant", "type": "string", "nullable": true},
