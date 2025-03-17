@@ -7,7 +7,7 @@ from pyspark.sql.functions import (
     col, when, date_format, unix_timestamp, lag, concat, lit, to_timestamp
 )
 from pyspark.sql.window import Window
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType, TimestampType
 
 # 📌 Configurar logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -42,6 +42,8 @@ def json_to_spark_schema(json_schema):
             spark_type = DoubleType()
         elif field_type == "int":
             spark_type = IntegerType()
+        elif field_type == "timestamp":  # 🔹 Agora suporta timestamp!
+            spark_type = TimestampType()
         else:
             raise ValueError(f"⚠️ Tipo de dado não suportado: {field_type}")
 
@@ -80,7 +82,7 @@ logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
 # 📌 Carregar CSV com schema correto
 df = spark.read.option("sep", "|").csv(INPUT_FILE, header=True, schema=schema)
 
-# 🔹 Garantir conversão correta da data/hora
+# 🔹 Garantir conversão correta da data/hora para `timestamp`
 df = df.withColumn("trans_date_trans_time", to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss"))
 
 # 🔹 Criar `day_of_week`
