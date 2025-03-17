@@ -88,6 +88,8 @@ if config.get("use_z_score_filter", False):
     logger.info(f"📊 Registros após remoção de outliers: {df.count()}")
 
 # 🔹 Criar colunas adicionais
+df.select("trans_date", "trans_time").summary("count", "min", "max").show()
+df.filter(col("trans_date").isNull() | col("trans_time").isNull()).show()
 df = df.withColumn("trans_date_trans_time", concat(col("trans_date"), lit(" "), col("trans_time")).cast("timestamp"))
 df = df.withColumn(
     "day_of_week",
