@@ -93,14 +93,14 @@ null_rules = {
 for col_name, default_value in null_rules.items():
     null_count = df.filter(col(col_name).isNull()).count()
     if null_count > 0:
-        print(f"🔹 ALERTA: {null_count} registros possuem `{col_name}` nulo. Sugestão: preencher com `{default_value}`.")
+        print(f"ALERTA: {null_count} registros possuem `{col_name}` nulo. Sugestão: preencher com `{default_value}`.")
 
 # Verificar distribuição de `transaction_period`**
-print("\n🔍 Verificando distribuição de `transaction_period`:")
+print("\nVerificando distribuição de `transaction_period`:")
 df.groupBy("transaction_period").count().orderBy("transaction_period").show()
 
 # Verificar relação entre `hour_of_day` e `transaction_period`**
-print("\n🔍 Verificando `hour_of_day` e `transaction_period` juntos:")
+print("\nVerificando `hour_of_day` e `transaction_period` juntos:")
 df.groupBy("hour_of_day", "transaction_period").count().orderBy("hour_of_day").show(24, False)
 
 # Detectar outliers em `amt`**
@@ -110,13 +110,13 @@ mean_amt, std_amt = amt_stats["mean_amt"], amt_stats["std_amt"]
 outliers = df.filter((col("amt") > mean_amt + 3 * std_amt) | (col("amt") < mean_amt - 3 * std_amt)).count()
 
 if outliers > 0:
-    print(f"⚠️ {outliers} registros detectados como outliers em `amt`. Sugerido remover!")
+    print(f"{outliers} registros detectados como outliers em `amt`. Sugerido remover!")
 
 # Validar possíveis fraudes
 # Transações acima de $10.000
 high_value_frauds = df.filter(col("amt") > 10000).count()
 if high_value_frauds > 0:
-    print(f"🚨 {high_value_frauds} transações acima de $10.000 identificadas como possíveis fraudes!")
+    print(f"{high_value_frauds} transações acima de $10.000 identificadas como possíveis fraudes!")
 
 # Transações muito rápidas no mesmo comerciante
 window_spec = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
@@ -131,7 +131,7 @@ df = df.withColumn("date", col("trans_date_trans_time").cast("date"))
 multi_state_purchases = df.groupBy("cc_num", "date").agg(count("state").alias("state_count")).filter(col("state_count") > 1).count()
 
 if multi_state_purchases > 0:
-    print(f"🚨 {multi_state_purchases} cartões usados em estados diferentes no mesmo dia!")
+    print(f"{multi_state_purchases} cartões usados em estados diferentes no mesmo dia!")
 
 # Verificar duplicatas
 duplicate_count = df.count() - df.dropDuplicates().count()
