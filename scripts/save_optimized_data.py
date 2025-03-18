@@ -6,7 +6,7 @@ import shutil
 import sys
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, count, mean, stddev, lit
+from pyspark.sql.functions import col, mean, lit
 from pyspark.sql.types import DoubleType, IntegerType
 
 # 📌 Configuração de logging
@@ -67,7 +67,8 @@ logger.info("✅ Correção de tipos aplicada.")
 df = df.fillna({
     "merchant": "Desconhecido",
     "merch_lat": 0.0,
-    "merch_long": 0.0
+    "merch_long": 0.0,
+    "category": "desconhecido"  # Evita criação da partição "__HIVE_DEFAULT_PARTITION__"
 })
 logger.info("✅ Valores nulos tratados.")
 
