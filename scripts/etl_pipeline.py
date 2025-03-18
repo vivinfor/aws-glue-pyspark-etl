@@ -65,14 +65,10 @@ logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
 # ✅ **Carregar CSV**
 df = spark.read.option("sep", "|").option("header", True).csv(INPUT_FILE)
 
-# ✅ **Criar `trans_date_trans_time` corretamente**
-if "trans_date" in df.columns and "trans_time" in df.columns:
-    df = df.withColumn(
-        "trans_date_trans_time",
-        to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss")
-    ).drop("trans_date", "trans_time")
+# ✅ **Garantir que os dados pertencem ao ano de 2023**
+df = df.filter(col("trans_date_trans_time").between("2023-01-01", "2023-12-31"))
 
-# ✅ **Criar `hour_of_day`**
+# ✅ **Criar `hour_of_day` corretamente**
 df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
 
 # 🔹 **Criar `transaction_period`**
@@ -101,6 +97,12 @@ df = df.fillna({"time_diff": 0})  # Substituir NaN por 0
 
 df = df.withColumn("possible_fraud_fast_transactions", when(col("time_diff") < 10, 1).otherwise(0))
 
+# 🔹 **Garantir que as colunas numéricas tenham o tipo correto**
+numeric_columns = ["zip", "lat", "long", "city_pop", "amt", "is_fraud", "merch_lat", "merch_long"]
+for col_name in numeric_columns:
+    if col_name in df.columns:
+        df = df.withColumn(col_name, col(col_name).cast(DoubleType()))
+
 # 📌 **Debug: Mostrar esquema e estatísticas antes de salvar**
 logger.info("🔍 Estrutura final do DataFrame:")
 df.printSchema()
@@ -117,12 +119,18 @@ if missing_columns:
 logger.info("🔍 Verificando distribuição de `transaction_period`:")
 df.select("transaction_period").groupby("transaction_period").count().show()
 
-# 🔍 **Verificar se `day_of_week` realmente existe antes de exibi-la**
+# 🔍 **Checar se `day_of_week` realmente foi gerado corretamente**
 if "day_of_week" in df.columns:
     logger.info("🔍 Exemplo de registros para validação:")
     df.select("day_of_week", "hour_of_day", "transaction_period", "possible_fraud_high_value", "possible_fraud_fast_transactions").show(10)
 else:
     logger.warning("⚠️ `day_of_week` não foi criada corretamente e não será exibida.")
+
+# 🔍 **Checagem de valores nulos antes de salvar**
+for col_name in expected_columns:
+    null_count = df.filter(col(col_name).isNull()).count()
+    if null_count > 0:
+        logger.warning(f"⚠️ {null_count} registros possuem valores nulos na coluna `{col_name}`.")
 
 # 📂 **Salvar dados processados**
 logger.info("📂 Salvando dados processados...")
