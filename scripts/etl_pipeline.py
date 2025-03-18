@@ -4,10 +4,10 @@ import yaml
 import logging
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, when, date_format, unix_timestamp, lag, concat, lit, to_timestamp
+    col, when, date_format, unix_timestamp, lag, concat, lit, to_timestamp, count, isnan
 )
 from pyspark.sql.window import Window
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType, TimestampType
+from pyspark.sql.types import StructType, StructField, StringType, FloatType, IntegerType, TimestampType
 
 # 📌 Configurar logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -39,7 +39,7 @@ def json_to_spark_schema(json_schema):
         if field_type == "string":
             spark_type = StringType()
         elif field_type == "double":
-            spark_type = DoubleType()
+            spark_type = FloatType()  # ✅ Ajustado para float
         elif field_type == "int":
             spark_type = IntegerType()
         elif field_type == "timestamp":
@@ -84,83 +84,65 @@ df = spark.read.option("sep", "|").csv(INPUT_FILE, header=True, schema=schema)
 # 🔹 Exibir nomes das colunas carregadas
 logger.info(f"📊 Colunas carregadas: {df.columns}")
 
-# 🔍 Verificar se 'trans_date' e 'trans_time' existem antes de processar
-if "trans_date" in df.columns and "trans_time" in df.columns:
-    logger.info("🔄 Convertendo 'trans_date' e 'trans_time' para 'trans_date_trans_time'...")
-    
-    # Criar a coluna `trans_date_trans_time`
-    df = df.withColumn(
-        "trans_date_trans_time",
-        to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss")
-    )
+missing_amt = df.filter(col("amt").isNull()).count()
+missing_fraud = df.filter(col("is_fraud").isNull()).count()
 
-    # 🔥 Remover as colunas antigas para evitar conflito
-    df = df.drop("trans_date", "trans_time")
-    
-    logger.info("✅ Conversão concluída: 'trans_date_trans_time' criada com sucesso!")
+if missing_amt > 0 or missing_fraud > 0:
+    logger.error(f"🚨 ERRO: {missing_amt} registros sem 'amt' e {missing_fraud} registros sem 'is_fraud'.")
+    raise ValueError("❌ Dados inválidos: colunas essenciais estão vazias!")
 
-# 🔹 Criar `day_of_week`
-df = df.withColumn(
-    "day_of_week",
-    when(col("trans_date_trans_time").isNotNull(), date_format(col("trans_date_trans_time"), "E"))
-    .otherwise(lit("Erro - Data Inválida"))
-)
-
-# 🔹 Criar `hour_of_day`
+# 🔹 Criar `hour_of_day` corretamente
 df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
 
-# 🔹 Criar `transaction_period`
+# 🔹 Criar `transaction_period` corrigido
 df = df.withColumn(
     "transaction_period",
-    when(col("hour_of_day") < 6, "Madrugada")
-    .when(col("hour_of_day") < 12, "Manhã")
-    .when(col("hour_of_day") < 18, "Tarde")
+    when((col("hour_of_day") >= 0) & (col("hour_of_day") < 6), "Madrugada")
+    .when((col("hour_of_day") >= 6) & (col("hour_of_day") < 12), "Manhã")
+    .when((col("hour_of_day") >= 12) & (col("hour_of_day") < 18), "Tarde")
     .otherwise("Noite")
 )
 
 # 🔹 Criar `possible_fraud_high_value`
 df = df.withColumn("possible_fraud_high_value", (col("amt") > 10000).cast("integer"))
 
-# 📊 Criar janela para detecção de transações rápidas
+# ✅ **Correção: Garantir que `time_diff` está sendo calculado corretamente**
 window_spec_time = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
-df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec_time))
-df = df.fillna({"time_diff": 0})  # Substitui NaN por 0
+
+df = df.withColumn(
+    "time_diff",
+    unix_timestamp(col("trans_date_trans_time")) - lag(unix_timestamp(col("trans_date_trans_time"))).over(window_spec_time)
+)
+
+# Substituir `NULL` por `0`
+df = df.fillna({"time_diff": 0})
 
 df = df.withColumn("possible_fraud_fast_transactions", when(col("time_diff") < 10, 1).otherwise(0))
+
+# ✅ **Verificar distribuição de transaction_period**
+logger.info("🔍 Verificando distribuição de `transaction_period`:")
+df.groupBy("transaction_period").count().show()
+
+# ✅ **Verificar dados de `hour_of_day` e `transaction_period` juntos**
+logger.info("🔍 Verificando `hour_of_day` e `transaction_period` juntos:")
+df.select("hour_of_day", "transaction_period").distinct().show()
 
 # 🔹 Configurar compressão e particionamento
 compression_codec = config.get("compression", "snappy")
 spark.conf.set("spark.sql.parquet.compression.codec", compression_codec)
-partition_keys = ["day_of_week", "transaction_period"]
 
 # 📂 Criar diretório de saída se for local
 if not IS_AWS and not os.path.exists(OUTPUT_PATH):
     os.makedirs(OUTPUT_PATH)
 
-# 🔍 Garantir que `trans_date_trans_time` existe e remover colunas antigas
-if "trans_date" in df.columns and "trans_time" in df.columns:
-    logger.info("🔄 Convertendo 'trans_date' e 'trans_time' para 'trans_date_trans_time'...")
-
-    # Criar a coluna corretamente
-    df = df.withColumn(
-        "trans_date_trans_time",
-        to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss")
-    )
-
-    # 🚀 Remover as colunas antigas para evitar conflito com o schema
-    df = df.drop("trans_date", "trans_time")
-
-    logger.info("✅ Conversão concluída: 'trans_date_trans_time' criada com sucesso!")
-
 # 🔍 Garantir que o schema final está correto antes de salvar
-expected_schema = {field["name"] for field in schema_json["fields"]}  # Extrair nomes das colunas do schema
-actual_columns = set(df.columns)  # Colunas do DataFrame
-
+expected_schema = {field["name"] for field in schema_json["fields"]}
+actual_columns = set(df.columns)
 # 🔥 Verificar se há colunas inesperadas
 unexpected_columns = actual_columns - expected_schema
 if unexpected_columns:
     logger.warning(f"⚠️ Removendo colunas inesperadas: {unexpected_columns}")
-    df = df.drop(*unexpected_columns)  # Remover colunas que não estão no schema
+    df = df.drop(*unexpected_columns)
 
 # 📂 Salvar dados processados
 logger.info("📂 Salvando dados processados...")
