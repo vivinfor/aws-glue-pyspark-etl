@@ -44,6 +44,7 @@ high_value_frauds = df.filter(col("amt") > 10000)
 window_spec = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
 df = df.withColumn("time_diff", unix_timestamp(col("trans_date_trans_time")) - lag(unix_timestamp(col("trans_date_trans_time"))).over(window_spec))
 fast_transactions = df.filter(col("time_diff") < 10)
+df = df.withColumn("date", col("trans_date_trans_time").cast("date"))
 multi_state_purchases = df.groupBy("cc_num", "date").agg(count("state").alias("state_count")).filter(col("state_count") > 1)
 
 # 📌 Criar pasta de auditoria se não existir
