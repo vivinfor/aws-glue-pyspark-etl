@@ -3,6 +3,7 @@ environment: local  # ou "aws"
 # Caminhos relativos (para evitar hardcoded paths do Windows)
 raw_data_path: "data/raw/"
 data_path: "data/processed/"
+optimized_data_path: "data/optimized"
 aws_s3_input: "s3://seu-bucket/dados-brutos.csv"
 aws_s3_output: "s3://seu-bucket/dados-processados/"
 
