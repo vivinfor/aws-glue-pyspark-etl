@@ -27,14 +27,34 @@ print(f"✅ {len(parquet_files)} arquivos Parquet encontrados.")
 
 # 📌 Ler todos os Parquets e consolidar no Pandas
 df_list = []
+missing_columns = set()
+
 for file in parquet_files:
-    df_list.append(pq.read_table(file).to_pandas())
+    try:
+        df_temp = pq.read_table(file).to_pandas()
+        
+        # Se a coluna `category` estiver ausente, adicioná-la com valores NaN
+        if "category" not in df_temp.columns:
+            missing_columns.add(file)
+            df_temp["category"] = pd.NA
+
+        df_list.append(df_temp)
+    except Exception as e:
+        print(f"⚠️ Erro ao ler {file}: {e}")
+
+# Se nenhum arquivo válido foi lido, interromper
+if not df_list:
+    raise RuntimeError("❌ Nenhum arquivo Parquet válido foi carregado!")
 
 df = pd.concat(df_list, ignore_index=True)
 
-# 📊 Exibir estatísticas básicas
+# Exibir estatísticas básicas
 print(df.head())
 print(df.describe())
+
+# 📌 **Verificar colunas ausentes**
+if missing_columns:
+    print(f"⚠️ Os seguintes arquivos estavam sem a coluna `category` e foram corrigidos dinamicamente:\n{missing_columns}")
 
 # 📂 Definir caminho para o CSV final
 CSV_OUTPUT_PATH = os.path.abspath("data/powerbi_data.csv")

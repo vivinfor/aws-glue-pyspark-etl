@@ -2,9 +2,11 @@ import os
 import json
 import yaml
 import pandas as pd
+import matplotlib.pyplot as plt
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, mean, stddev, unix_timestamp, lag, count, year, month
+    col, mean, stddev, unix_timestamp, lag, count, year, month, sum as spark_sum
 )
 from pyspark.sql.window import Window
 
@@ -77,10 +79,8 @@ if multi_state_purchases.count() > 0:
     multi_state_purchases.toPandas().to_csv(os.path.join(AUDIT_PATH, "multi_state_purchases.csv"), index=False, encoding="utf-8")
     print(f"📂 Cartões usados em múltiplos estados no mesmo dia salvos para auditoria: {os.path.join(AUDIT_PATH, 'multi_state_purchases.csv')}")
 
-# 📊 **Filtrar transações de 2023**
-df_2023 = df.filter(year(col("trans_date_trans_time")) == 2023)
-
 # 📊 **Total de transações e fraudes em 2023**
+df_2023 = df.filter(year(col("trans_date_trans_time")) == 2023)
 total_transactions_2023 = df_2023.count()
 total_frauds_2023 = df_2023.filter(col("is_fraud") == 1).count()
 
@@ -91,35 +91,35 @@ fraud_by_month_2023 = (
     .count()
     .orderBy("month")
 )
-
-# **Converter para Pandas**
 fraud_by_month_df = fraud_by_month_2023.toPandas()
 fraud_by_month_df.rename(columns={"count": "total_frauds"}, inplace=True)
+fraud_by_month_df.to_csv(os.path.join(AUDIT_PATH, "fraud_by_month_2023.csv"), index=False, encoding="utf-8")
 
-# 📂 **Salvar fraudes por mês**
-fraud_by_month_csv_path = os.path.join(AUDIT_PATH, "fraud_by_month_2023.csv")
-fraud_by_month_df.to_csv(fraud_by_month_csv_path, index=False, encoding="utf-8")
-print(f"📊 Fraudes por mês em 2023 salvas: {fraud_by_month_csv_path}")
+# 📊 **Verificação de transações duplicadas (`cc_num`, `trans_num`)**
+duplicates = df.groupBy("cc_num", "trans_num").count().filter(col("count") > 1)
+if duplicates.count() > 0:
+    duplicates.toPandas().to_csv(os.path.join(AUDIT_PATH, "duplicate_transactions.csv"), index=False, encoding="utf-8")
+    print(f"📂 Transações duplicadas salvas para auditoria: {os.path.join(AUDIT_PATH, 'duplicate_transactions.csv')}")
 
-# 📊 **Gerar resumo das validações**
-summary_data = {
-    "Total de transações em 2023": [total_transactions_2023],
-    "Total de fraudes em 2023": [total_frauds_2023],
-    "Registros inválidos (`amt` nulo)": [invalid_records.count()],
-    "Registros inválidos (`is_fraud` nulo)": [invalid_records.count()],
-    "Registros outliers em `amt`": [outliers.count()],
-    "Transações acima de $10.000": [high_value_frauds.count()],
-    "Transações rápidas (< 10s)": [fast_transactions.count()],
-    "Cartões usados em múltiplos estados no mesmo dia": [multi_state_purchases.count()]
-}
+# 📊 **Comparação de valores totais `amt`**
+total_amt = df.select(spark_sum("amt")).collect()[0][0]
+total_fraud_amt = df.filter(col("is_fraud") == 1).select(spark_sum("amt")).collect()[0][0]
 
-summary_df = pd.DataFrame.from_dict(summary_data, orient="index", columns=["Total"])
-summary_csv_path = os.path.join(AUDIT_PATH, "validation_summary.csv")
-summary_df.to_csv(summary_csv_path, encoding="utf-8")
+# 📊 **Gerar gráfico de fraudes por mês**
+plt.figure(figsize=(10, 5))
+plt.bar(fraud_by_month_df["month"], fraud_by_month_df["total_frauds"], color="red")
+plt.xlabel("Mês")
+plt.ylabel("Total de Fraudes")
+plt.title("Evolução das Fraudes por Mês - 2023")
+plt.xticks(range(1, 13))
+plt.grid()
+plt.savefig(os.path.join(AUDIT_PATH, "fraud_by_month_2023.png"))
+plt.close()
 
-print(f"📊 Resumo das validações salvo: {summary_csv_path}")
-print(f"📊 Total de transações em 2023: {total_transactions_2023}")
-print(f"📊 Total de fraudes em 2023: {total_frauds_2023}")
+print(f"📊 Evolução das fraudes por mês salva como gráfico.")
+
+print(f"📊 Total de transações: {total_amt:.2f}")
+print(f"📊 Total de fraudes em valor: {total_fraud_amt:.2f}")
 
 print("\n🚀 Relatório de auditoria concluído!")
 
