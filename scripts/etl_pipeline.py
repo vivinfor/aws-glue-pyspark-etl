@@ -4,7 +4,7 @@ import yaml
 import logging
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, when, date_format, unix_timestamp, lag, concat, lit, to_timestamp, regexp_extract
+    col, when, date_format, unix_timestamp, lag, concat, lit, to_timestamp
 )
 from pyspark.sql.window import Window
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType, TimestampType
@@ -62,24 +62,8 @@ if not csv_files:
 INPUT_FILE = os.path.join(INPUT_PATH, csv_files[0])
 logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
 
-# ✅ **Carregar CSV, ignorando diferença de colunas**
+# ✅ **Carregar CSV**
 df = spark.read.option("sep", "|").option("header", True).csv(INPUT_FILE)
-
-# ✅ **Verificar formato de trans_time**
-logger.info("🔍 Exemplo de valores únicos de `trans_time` para validação:")
-df.select("trans_time").distinct().show(10, False)
-
-# ✅ **Detectar se o formato é 12h (AM/PM)**
-is_12h_format = df.filter(col("trans_time").rlike("(?i)(AM|PM)")).count() > 0
-
-if is_12h_format:
-    logger.warning("⚠️ `trans_time` está no formato 12h (AM/PM). Convertendo para 24h...")
-    df = df.withColumn(
-        "trans_time",
-        when(col("trans_time").rlike("(?i)PM") & (col("trans_time").substr(1, 2).cast("int") < 12),
-             (col("trans_time").substr(1, 2).cast("int") + 12).cast("string"))
-        .otherwise(col("trans_time"))
-    )
 
 # ✅ **Criar `trans_date_trans_time` corretamente**
 if "trans_date" in df.columns and "trans_time" in df.columns:
@@ -88,25 +72,8 @@ if "trans_date" in df.columns and "trans_time" in df.columns:
         to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss")
     ).drop("trans_date", "trans_time")
 
-# ✅ **Converter tipos para corresponder ao schema**
-for field in schema_json["fields"]:
-    col_name = field["name"]
-    expected_type = field["type"]
-
-    if col_name in df.columns:
-        if expected_type == "int":
-            df = df.withColumn(col_name, col(col_name).cast("int"))
-        elif expected_type == "double":
-            df = df.withColumn(col_name, col(col_name).cast("double"))
-        elif expected_type == "timestamp":
-            df = df.withColumn(col_name, col(col_name).cast("timestamp"))
-
 # ✅ **Criar `hour_of_day`**
 df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
-
-# 🔍 **Verificar distribuição dos valores de `hour_of_day`**
-logger.info("🔍 Distribuição dos valores de `hour_of_day` após conversão:")
-df.select("hour_of_day").groupby("hour_of_day").count().show(24)
 
 # 🔹 **Criar `transaction_period`**
 df = df.withColumn(
@@ -115,6 +82,13 @@ df = df.withColumn(
     .when((col("hour_of_day") >= 6) & (col("hour_of_day") < 12), "Manhã")
     .when((col("hour_of_day") >= 12) & (col("hour_of_day") < 18), "Tarde")
     .otherwise("Noite")
+)
+
+# 🔹 **Criar `day_of_week` corretamente**
+df = df.withColumn(
+    "day_of_week",
+    when(col("trans_date_trans_time").isNotNull(), date_format(col("trans_date_trans_time"), "E"))
+    .otherwise(lit("Erro - Data Inválida"))
 )
 
 # 🔹 **Criar `possible_fraud_high_value`**
@@ -131,11 +105,24 @@ df = df.withColumn("possible_fraud_fast_transactions", when(col("time_diff") < 1
 logger.info("🔍 Estrutura final do DataFrame:")
 df.printSchema()
 
+# 🔍 **Confirmar que todas as colunas do esquema esperado foram criadas**
+expected_columns = {field["name"] for field in schema_json["fields"]}
+actual_columns = set(df.columns)
+missing_columns = expected_columns - actual_columns
+
+if missing_columns:
+    logger.warning(f"⚠️ As seguintes colunas não foram geradas: {missing_columns}")
+
+# 🔍 **Confirmar distribuição de `transaction_period`**
 logger.info("🔍 Verificando distribuição de `transaction_period`:")
 df.select("transaction_period").groupby("transaction_period").count().show()
 
-logger.info("🔍 Exemplo de registros para validação:")
-df.select("day_of_week", "hour_of_day", "transaction_period", "possible_fraud_high_value", "possible_fraud_fast_transactions").show(10)
+# 🔍 **Verificar se `day_of_week` realmente existe antes de exibi-la**
+if "day_of_week" in df.columns:
+    logger.info("🔍 Exemplo de registros para validação:")
+    df.select("day_of_week", "hour_of_day", "transaction_period", "possible_fraud_high_value", "possible_fraud_fast_transactions").show(10)
+else:
+    logger.warning("⚠️ `day_of_week` não foi criada corretamente e não será exibida.")
 
 # 📂 **Salvar dados processados**
 logger.info("📂 Salvando dados processados...")
