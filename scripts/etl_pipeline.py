@@ -82,6 +82,9 @@ df = df.withColumn(
 # ✅ Preencher valores nulos
 df = df.fillna({"zip": 0, "merch_lat": 0.0, "merch_long": 0.0, "merchant": "Desconhecido"})
 
+# Criar 'hour_of_day'
+df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
+
 # ✅ Criar 'transaction_period'
 df = df.withColumn(
     "transaction_period",
