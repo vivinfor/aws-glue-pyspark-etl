@@ -123,7 +123,7 @@ As principais regras de negócio aplicadas neste projeto incluem:
 
 ## 📊 Visuais Construídos no Power BI
 
-![image](https://github.com/user-attachments/assets/defade79-ecd3-47af-80fe-15ccdf24e456)
+![alt text](image.png)
 
 ---
 
