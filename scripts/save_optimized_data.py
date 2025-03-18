@@ -6,8 +6,8 @@ import shutil
 import sys
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, when
-from pyspark.sql.types import DoubleType, IntegerType, StringType
+from pyspark.sql.functions import col, count, mean, stddev, lit
+from pyspark.sql.types import DoubleType, IntegerType
 
 # 📌 Configuração de logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -31,14 +31,12 @@ logger.info(f"📂 Diretório de dados otimizados: {OPTIMIZED_DATA_DIR}")
 logger.info("🔍 Iniciando validação de dados antes da otimização...")
 validation_script = "scripts/data_validation.py"
 
-
 try:
     result = subprocess.run([sys.executable, validation_script], check=True, text=True, capture_output=True)
     logger.info(f"📊 Resultado da validação:\n{result.stdout}")
 except subprocess.CalledProcessError as e:
     logger.error(f"🚨 Erro ao validar os dados! Saída:\n{e.stderr}")
     exit(1)
-
 
 # 🚀 Criar sessão Spark
 spark = SparkSession.builder.appName("Save Optimized Data").getOrCreate()
@@ -72,6 +70,15 @@ df = df.fillna({
     "merch_long": 0.0
 })
 logger.info("✅ Valores nulos tratados.")
+
+# 🔍 **Validações antes de salvar**
+total_registros = df.count()
+total_transacoes_fraude = df.filter(col("is_fraud") == 1).count()
+media_amt = df.select(mean("amt")).collect()[0][0]
+
+logger.info(f"📊 Total de registros: {total_registros}")
+logger.info(f"📊 Total de transações fraudulentas: {total_transacoes_fraude}")
+logger.info(f"📊 Média de valores de transação (amt): {media_amt:.2f}")
 
 # 📌 **Garantir que o diretório otimizado está pronto para salvar os dados**
 if os.path.exists(OPTIMIZED_DATA_DIR):

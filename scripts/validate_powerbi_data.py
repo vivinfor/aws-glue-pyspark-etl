@@ -28,18 +28,13 @@ print(f"✅ {len(parquet_files)} arquivos Parquet encontrados.")
 # 📌 Ler todos os Parquets e consolidar no Pandas
 df_list = []
 for file in parquet_files:
-    print(f"📂 Lendo: {file}")
     df_list.append(pq.read_table(file).to_pandas())
 
-# 🔄 Concatenar todos os DataFrames
 df = pd.concat(df_list, ignore_index=True)
 
 # 📊 Exibir estatísticas básicas
 print(df.head())
 print(df.describe())
-print(df.dtypes)
-
-
 
 # 📂 Definir caminho para o CSV final
 CSV_OUTPUT_PATH = os.path.abspath("data/powerbi_data.csv")
@@ -47,5 +42,20 @@ CSV_OUTPUT_PATH = os.path.abspath("data/powerbi_data.csv")
 # 🚀 Salvar como CSV
 df.to_csv(CSV_OUTPUT_PATH, index=False, encoding="utf-8")
 print(f"✅ Arquivo CSV salvo em: {CSV_OUTPUT_PATH}")
+
+# 🚀 **Comparação entre CSV e Parquet**
+df_csv = pd.read_csv(CSV_OUTPUT_PATH)
+
+# Comparação de totais
+if len(df) == len(df_csv):
+    print("✅ O número de registros no CSV é igual ao do Parquet.")
+else:
+    print(f"⚠️ Divergência detectada! CSV tem {len(df_csv)} registros, Parquet tem {len(df)}.")
+
+# Comparação de soma dos valores `amt`
+if df["amt"].sum() == df_csv["amt"].sum():
+    print("✅ A soma dos valores `amt` é consistente entre Parquet e CSV.")
+else:
+    print("⚠️ A soma dos valores `amt` diverge entre Parquet e CSV!")
 
 print("🚀 Processo concluído!")
