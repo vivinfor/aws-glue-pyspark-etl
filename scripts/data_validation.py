@@ -1,38 +1,61 @@
+import os
 import json
-import pandas as pd
+import yaml
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, mean, stddev, unix_timestamp, lag
+from pyspark.sql.functions import (
+    col, mean, stddev, unix_timestamp, lag, count, date_format
+)
 from pyspark.sql.window import Window
 
-# Criar sessão Spark
-spark = SparkSession.builder.appName("Validação de Dados - ETL").getOrCreate()
-
-# Definir caminhos dos arquivos
+# 📌 Carregar configuração do YAML
+CONFIG_PATH = "config/config.yaml"
 SCHEMA_PATH = "config/schema.json"
-DATA_PATH = "data/dados-processados/"
 
-# Carregar o schema esperado
+# 🔍 Verificar se os arquivos existem
+if not os.path.exists(CONFIG_PATH):
+    raise FileNotFoundError("❌ Arquivo 'config.yaml' não encontrado!")
+
+if not os.path.exists(SCHEMA_PATH):
+    raise FileNotFoundError("❌ Arquivo 'schema.json' não encontrado!")
+
+# 📂 Carregar config.yaml
+with open(CONFIG_PATH, "r") as f:
+    config = yaml.safe_load(f)
+
+# 📂 Carregar schema.json
 with open(SCHEMA_PATH, "r") as f:
     schema = json.load(f)
 
-# Criar dicionário de schema esperado
-expected_schema = {field["name"]: field["type"] for field in schema["fields"]}
+# 📌 Determinar ambiente e definir caminhos corretamente
+IS_AWS = config.get("environment") == "aws"
 
-# Ler os dados processados
+if IS_AWS:
+    DATA_PATH = config["aws_s3_output"]
+else:
+    DATA_PATH = os.path.abspath(config["data_path"])
+
+print(f"📂 Diretório de dados processados: {DATA_PATH}")
+
+# 📌 Criar sessão Spark
+spark = SparkSession.builder.appName("Validação de Dados - ETL").getOrCreate()
+
+# 📂 Carregar os dados processados
 df = spark.read.parquet(DATA_PATH)
 
-# 1️⃣ **Validar se todas as colunas esperadas existem**
+# 🔍 Validar se todas as colunas esperadas existem
+expected_schema = {field["name"]: field["type"] for field in schema["fields"]}
 missing_columns = [col for col in expected_schema.keys() if col not in df.columns]
+
 if missing_columns:
     print(f"⚠️ Colunas ausentes no dataset: {missing_columns}")
 else:
     print("✅ Todas as colunas esperadas estão presentes.")
 
-# 2️⃣ **Validar tipos de dados conforme `schema.json`**
+# 🔍 Validar tipos de dados conforme `schema.json`
 for field in schema["fields"]:
     col_name = field["name"]
     expected_type = field["type"]
-    
+
     if col_name in df.columns:
         actual_type = df.select(col_name).schema[0].dataType.simpleString()
 
@@ -43,7 +66,19 @@ for field in schema["fields"]:
         if actual_type != expected_type:
             print(f"⚠️ Tipo incorreto na coluna '{col_name}': Esperado {expected_type}, encontrado {actual_type}")
 
-# 3️⃣ **Validar valores nulos seguindo as regras de negócio**
+# 3️⃣ **Validar classificação de `transaction_period`**
+print("\n🔍 Verificando distribuição de `transaction_period`:")
+df.groupBy("transaction_period").count().show()
+
+print("\n🔍 Verificando `hour_of_day` e `transaction_period` juntos:")
+df.select("hour_of_day", "transaction_period").distinct().orderBy("hour_of_day").show(24, False)
+
+# Caso `hour_of_day` tenha valores errados, listar `trans_date_trans_time`
+if df.select("hour_of_day").distinct().count() == 1:
+    print("\n⚠️ `hour_of_day` parece ter apenas um valor único! Exibindo amostras de `trans_date_trans_time`:")
+    df.select("trans_date_trans_time", "hour_of_day").show(10, False)
+
+# 🔍 Validar valores nulos
 null_rules = {
     "cc_num": "Obrigatório",
     "amt": "Obrigatório",
@@ -64,8 +99,7 @@ for col_name, rule in null_rules.items():
             else:
                 print(f"🔹 ALERTA: {null_count} registros possuem '{col_name}' nulo. Aplicando regra: {rule}")
 
-# 4️⃣ **Detectar outliers e valores inválidos**
-# a) Outliers em `amt` (Z-score acima de 3)
+# 🔍 Detectar outliers em `amt`
 window_spec = Window.orderBy("amt")
 df = df.withColumn("z_score", (col("amt") - mean(col("amt")).over(window_spec)) / stddev(col("amt")).over(window_spec))
 outliers = df.filter((col("z_score") > 3) | (col("z_score") < -3)).count()
@@ -73,18 +107,13 @@ df = df.drop("z_score")
 if outliers > 0:
     print(f"⚠️ {outliers} registros detectados como outliers em 'amt' e devem ser removidos!")
 
-# b) Cidades fictícias (população menor que 100)
-invalid_cities = df.filter(col("city_pop") < 100).count()
-if invalid_cities > 0:
-    print(f"⚠️ {invalid_cities} registros possuem 'city_pop' < 100 e devem ser removidos!")
-
-# 5️⃣ **Detecção de possíveis fraudes**
+# 🔍 Validar fraudes
 # a) Transações acima de $10.000
 high_value_frauds = df.filter(col("amt") > 10000).count()
 if high_value_frauds > 0:
     print(f"🚨 {high_value_frauds} transações acima de $10.000 identificadas como possíveis fraudes!")
 
-# b) Múltiplas transações no mesmo comerciante em menos de 10 segundos
+# b) Transações muito rápidas no mesmo comerciante
 window_spec = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
 df = df.withColumn("time_diff", unix_timestamp(col("trans_date_trans_time")) - lag(unix_timestamp(col("trans_date_trans_time"))).over(window_spec))
 fast_transactions = df.filter(col("time_diff") < 10).count()
@@ -97,12 +126,12 @@ multi_state_purchases = df.select("cc_num", "date", "state").distinct().groupBy(
 if multi_state_purchases > 0:
     print(f"🚨 {multi_state_purchases} cartões usados em estados diferentes no mesmo dia!")
 
-# 6️⃣ **Verificar duplicatas**
+# 🔍 Verificar duplicatas
 duplicate_count = df.count() - df.dropDuplicates().count()
 if duplicate_count > 0:
     print(f"⚠️ Existem {duplicate_count} registros duplicados no dataset!")
 else:
     print("✅ Nenhuma duplicata encontrada.")
 
-print("📊 Validação de dados concluída!")
+print("\n📊 Validação de dados concluída!")
 spark.stop()

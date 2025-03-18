@@ -79,7 +79,6 @@ if not csv_files:
 INPUT_FILE = os.path.join(INPUT_PATH, csv_files[0])
 logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
 
-# 📌 Carregar CSV com schema correto e verificar se `trans_time` foi carregada corretamente
 df = spark.read.option("sep", "|").csv(INPUT_FILE, header=True, schema=schema)
 
 # 🔹 Exibir nomes das colunas carregadas
