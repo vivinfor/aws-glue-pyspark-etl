@@ -63,6 +63,7 @@ df = df.withColumn("day_of_week", col("day_of_week").cast(StringType()))
 df = df.withColumn("hour_of_day", col("hour_of_day").cast(IntegerType()))
 df = df.withColumn("possible_fraud_high_value", col("possible_fraud_high_value").cast(IntegerType()))
 df = df.withColumn("possible_fraud_fast_transactions", col("possible_fraud_fast_transactions").cast(IntegerType()))
+df = df.withColumn("category", col("category").cast(StringType()))
 print("🔄 Conversão aplicada aos campos de tipo!")
 
 # 📌 Garantir que o diretório otimizado está pronto para salvar os dados

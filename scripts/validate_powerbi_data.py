@@ -39,6 +39,8 @@ print(df.head())
 print(df.describe())
 print(df.dtypes)
 
+
+
 # 📂 Definir caminho para o CSV final
 CSV_OUTPUT_PATH = os.path.abspath("data/powerbi_data.csv")
 
