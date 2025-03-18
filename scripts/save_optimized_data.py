@@ -2,8 +2,8 @@ import os
 import yaml
 import shutil
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, when, lit
-from pyspark.sql.types import DoubleType, StringType, IntegerType
+from pyspark.sql.functions import col
+from pyspark.sql.types import DoubleType, IntegerType, StringType
 
 # 📂 Carregar Configuração do YAML
 config_path = os.path.abspath("config/config.yaml")
@@ -46,7 +46,7 @@ expected_columns = {
 }
 actual_columns = set(df.columns)
 
-# 🔥 Verificar colunas inesperadas e removê-las
+# 🔥 Remover colunas inesperadas
 extra_columns = actual_columns - expected_columns
 if extra_columns:
     print(f"⚠️ Removendo colunas inesperadas: {extra_columns}")
@@ -57,17 +57,26 @@ missing_columns = expected_columns - actual_columns
 if missing_columns:
     raise ValueError(f"❌ Colunas faltantes no dataset processado: {missing_columns}")
 
-# ✅ **Correção: Garantir tipos corretos**
-df = df.withColumn("amt", col("amt").cast(DoubleType()))
-df = df.withColumn("day_of_week", col("day_of_week").cast(StringType()))
-df = df.withColumn("hour_of_day", col("hour_of_day").cast(IntegerType()))
-df = df.withColumn("possible_fraud_high_value", col("possible_fraud_high_value").cast(IntegerType()))
-df = df.withColumn("possible_fraud_fast_transactions", col("possible_fraud_fast_transactions").cast(IntegerType()))
+# ✅ **Garantir tipos corretos apenas se necessário**
+cast_types = {
+    "amt": DoubleType(),
+    "zip": IntegerType(),
+    "lat": DoubleType(),
+    "long": DoubleType(),
+    "city_pop": IntegerType(),
+    "unix_time": IntegerType(),
+    "merch_lat": DoubleType(),
+    "merch_long": DoubleType(),
+    "is_fraud": IntegerType(),
+    "hour_of_day": IntegerType(),
+    "possible_fraud_high_value": IntegerType(),
+    "possible_fraud_fast_transactions": IntegerType(),
+}
 
-print("🔍 Antes da conversão: `category` tem o tipo:", df.schema["category"].dataType)
-df = df.withColumn("category", col("category").cast(StringType()))  # Força a conversão
-df = df.withColumn("category", when(col("category").isNotNull(), col("category").cast(StringType())).otherwise(lit("Unknown")))
-print("✅ Conversão aplicada. Tipo final de `category`:", df.schema["category"].dataType)
+for col_name, dtype in cast_types.items():
+    if col_name in df.columns and df.schema[col_name].dataType != dtype:
+        print(f"🔄 Convertendo `{col_name}` para {dtype.simpleString()}")
+        df = df.withColumn(col_name, col(col_name).cast(dtype))
 
 # 📌 Garantir que o diretório otimizado está pronto para salvar os dados
 if os.path.exists(OPTIMIZED_DATA_DIR):
