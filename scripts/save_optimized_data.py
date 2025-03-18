@@ -2,7 +2,7 @@ import os
 import yaml
 import shutil
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, when
+from pyspark.sql.functions import col, when, lit
 from pyspark.sql.types import DoubleType, StringType, IntegerType
 
 # 📂 Carregar Configuração do YAML
@@ -57,6 +57,7 @@ missing_columns = expected_columns - actual_columns
 if missing_columns:
     raise ValueError(f"❌ Colunas faltantes no dataset processado: {missing_columns}")
 
+# ✅ **Correção: Garantir tipos corretos**
 df = df.withColumn("amt", col("amt").cast(DoubleType()))
 df = df.withColumn("day_of_week", col("day_of_week").cast(StringType()))
 df = df.withColumn("hour_of_day", col("hour_of_day").cast(IntegerType()))
@@ -64,7 +65,8 @@ df = df.withColumn("possible_fraud_high_value", col("possible_fraud_high_value")
 df = df.withColumn("possible_fraud_fast_transactions", col("possible_fraud_fast_transactions").cast(IntegerType()))
 
 print("🔍 Antes da conversão: `category` tem o tipo:", df.schema["category"].dataType)
-df = df.withColumn("category", when(col("category").isNotNull(), col("category").cast(StringType())).otherwise(None))
+df = df.withColumn("category", col("category").cast(StringType()))  # Força a conversão
+df = df.withColumn("category", when(col("category").isNotNull(), col("category").cast(StringType())).otherwise(lit("Unknown")))
 print("✅ Conversão aplicada. Tipo final de `category`:", df.schema["category"].dataType)
 
 # 📌 Garantir que o diretório otimizado está pronto para salvar os dados
