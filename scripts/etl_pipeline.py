@@ -23,35 +23,29 @@ with open(config_path, "r") as f:
 with open(schema_path, "r") as f:
     schema_json = json.load(f)
 
-# 📂 Criar Schema PySpark baseado no CSV real
-schema = StructType([
-    StructField("ssn", StringType(), True),
-    StructField("cc_num", StringType(), False),
-    StructField("first", StringType(), True),
-    StructField("last", StringType(), True),
-    StructField("gender", StringType(), True),
-    StructField("street", StringType(), True),
-    StructField("city", StringType(), True),
-    StructField("state", StringType(), True),
-    StructField("zip", IntegerType(), True),
-    StructField("lat", FloatType(), True),
-    StructField("long", FloatType(), True),
-    StructField("city_pop", IntegerType(), True),
-    StructField("job", StringType(), True),
-    StructField("dob", StringType(), True),
-    StructField("acct_num", StringType(), True),
-    StructField("profile", StringType(), True),
-    StructField("trans_num", StringType(), False),
-    StructField("trans_date", StringType(), False),
-    StructField("trans_time", StringType(), False),
-    StructField("unix_time", IntegerType(), False),
-    StructField("category", StringType(), True),
-    StructField("amt", FloatType(), False),
-    StructField("is_fraud", IntegerType(), False),
-    StructField("merchant", StringType(), True),
-    StructField("merch_lat", FloatType(), True),
-    StructField("merch_long", FloatType(), True)
-])
+# ✅ **Converter JSON para Schema PySpark**
+def json_to_spark_schema(json_schema):
+    fields = []
+    for field in json_schema["fields"]:
+        field_type = field["type"]
+        nullable = field.get("nullable", True)
+
+        if field_type == "string":
+            spark_type = StringType()
+        elif field_type == "double":
+            spark_type = FloatType()  # Spark usa Float em vez de Double
+        elif field_type == "int":
+            spark_type = IntegerType()
+        elif field_type == "timestamp":
+            spark_type = TimestampType()
+        else:
+            raise ValueError(f"⚠️ Tipo de dado não suportado: {field_type}")
+
+        fields.append(StructField(field["name"], spark_type, nullable))
+
+    return StructType(fields)
+
+schema = json_to_spark_schema(schema_json)
 
 # 📂 Criar sessão Spark
 spark = SparkSession.builder.appName("ETL Pipeline").getOrCreate()
@@ -70,55 +64,29 @@ logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
 
 df = spark.read.option("sep", "|").csv(INPUT_FILE, header=True, schema=schema)
 
-# ✅ Garantir que os dados pertencem ao ano de 2023
+# ✅ **Filtrar apenas registros do ano de 2023**
 df = df.filter(col("trans_date").between("2023-01-01", "2023-12-31"))
 
-# ✅ Criar 'trans_date_trans_time'
+# ✅ **Criar coluna `trans_date_trans_time`**
 df = df.withColumn(
     "trans_date_trans_time",
     to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss")
 ).drop("trans_date", "trans_time")
 
-# ✅ Preencher valores nulos
+# ✅ **Preencher valores nulos**
 df = df.fillna({"zip": 0, "merch_lat": 0.0, "merch_long": 0.0, "merchant": "Desconhecido"})
 
-# Criar 'hour_of_day'
-df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
-
-# ✅ Criar 'transaction_period'
-df = df.withColumn(
-    "transaction_period",
-    when(col("hour_of_day") < 6, "Madrugada")
-    .when(col("hour_of_day") < 12, "Manhã")
-    .when(col("hour_of_day") < 18, "Tarde")
-    .otherwise("Noite")
-)
-
-# ✅ Validar `is_fraud`
-df = df.filter(col("is_fraud").isin([0, 1]))
-
-# 📌 Debug: Mostrar esquema antes de salvar
-logger.info("🔍 Estrutura do DataFrame antes de salvar:")
-df.printSchema()
-
-# 🔍 Garantir que as colunas essenciais estão presentes antes de salvar
-required_columns = ["day_of_week", "hour_of_day", "transaction_period", "possible_fraud_high_value", "possible_fraud_fast_transactions"]
-
-missing_columns = [col for col in required_columns if col not in df.columns]
-if missing_columns:
-    logger.warning(f"⚠️ As seguintes colunas não foram geradas corretamente: {missing_columns}")
-
-# 🔹 Criar `day_of_week`
+# 🔹 **Criar `day_of_week`**
 df = df.withColumn(
     "day_of_week",
     when(col("trans_date_trans_time").isNotNull(), date_format(col("trans_date_trans_time"), "E"))
     .otherwise(lit("Erro - Data Inválida"))
 )
 
-# 🔹 Criar `hour_of_day`
+# 🔹 **Criar `hour_of_day`**
 df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
 
-# 🔹 Criar `transaction_period` corretamente
+# 🔹 **Criar `transaction_period`**
 df = df.withColumn(
     "transaction_period",
     when((col("hour_of_day") >= 0) & (col("hour_of_day") < 6), "Madrugada")
@@ -127,24 +95,38 @@ df = df.withColumn(
     .otherwise("Noite")
 )
 
-# 🔹 Criar `possible_fraud_high_value`
+# 🔹 **Criar `possible_fraud_high_value`**
 df = df.withColumn("possible_fraud_high_value", (col("amt") > 10000).cast("integer"))
 
-# 📊 Criar janela para detecção de transações rápidas
+# 📊 **Criar janela para detecção de transações rápidas**
 window_spec_time = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
 df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec_time))
-df = df.fillna({"time_diff": 0})  # Substitui NaN por 0
+df = df.fillna({"time_diff": 0})  # Substituir NaN por 0
 
 df = df.withColumn("possible_fraud_fast_transactions", when(col("time_diff") < 10, 1).otherwise(0))
 
-# 📌 Debug: Mostrar valores únicos de `transaction_period`
-df.select("transaction_period").distinct().show()
+# 📌 **Debug: Mostrar esquema e estatísticas antes de salvar**
+logger.info("🔍 Estrutura final do DataFrame:")
+df.printSchema()
 
-# 📂 Salvar dados processados
+logger.info("🔍 Verificando distribuição de `transaction_period`:")
+df.select("transaction_period").groupby("transaction_period").count().show()
+
+logger.info("🔍 Exemplo de registros para validação:")
+df.select("day_of_week", "hour_of_day", "transaction_period", "possible_fraud_high_value", "possible_fraud_fast_transactions").show(10)
+
+# 📂 **Validar se todas as colunas foram geradas corretamente**
+required_columns = {"day_of_week", "hour_of_day", "transaction_period", "possible_fraud_high_value", "possible_fraud_fast_transactions"}
+missing_columns = required_columns - set(df.columns)
+
+if missing_columns:
+    logger.warning(f"⚠️ As seguintes colunas não foram geradas corretamente: {missing_columns}")
+
+# 📂 **Salvar dados processados**
 logger.info("📂 Salvando dados processados...")
 df.write.mode("overwrite").parquet(OUTPUT_PATH)
 logger.info("✅ Dados processados salvos com sucesso!")
 
-# 🚀 Encerrar sessão
+# 🚀 **Encerrar sessão**
 spark.stop()
 logger.info("🚀 ETL Finalizado!")
