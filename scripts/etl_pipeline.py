@@ -7,7 +7,7 @@ from pyspark.sql.functions import (
     col, when, date_format, unix_timestamp, lag, concat, lit, to_timestamp
 )
 from pyspark.sql.window import Window
-from pyspark.sql.types import StructType, StructField, StringType, FloatType, IntegerType, TimestampType
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType, TimestampType
 
 # 📌 Configurar logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -33,7 +33,7 @@ def json_to_spark_schema(json_schema):
         if field_type == "string":
             spark_type = StringType()
         elif field_type == "double":
-            spark_type = FloatType()  # Spark usa Float em vez de Double
+            spark_type = DoubleType()
         elif field_type == "int":
             spark_type = IntegerType()
         elif field_type == "timestamp":
@@ -65,13 +65,7 @@ logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
 df = spark.read.option("sep", "|").csv(INPUT_FILE, header=True, schema=schema)
 
 # ✅ **Filtrar apenas registros do ano de 2023**
-df = df.filter(col("trans_date").between("2023-01-01", "2023-12-31"))
-
-# ✅ **Criar coluna `trans_date_trans_time`**
-df = df.withColumn(
-    "trans_date_trans_time",
-    to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss")
-).drop("trans_date", "trans_time")
+df = df.filter(col("trans_date_trans_time").between("2023-01-01", "2023-12-31"))
 
 # ✅ **Preencher valores nulos**
 df = df.fillna({"zip": 0, "merch_lat": 0.0, "merch_long": 0.0, "merchant": "Desconhecido"})
