@@ -97,6 +97,49 @@ df = df.withColumn(
 # ✅ Validar `is_fraud`
 df = df.filter(col("is_fraud").isin([0, 1]))
 
+# 📌 Debug: Mostrar esquema antes de salvar
+logger.info("🔍 Estrutura do DataFrame antes de salvar:")
+df.printSchema()
+
+# 🔍 Garantir que as colunas essenciais estão presentes antes de salvar
+required_columns = ["day_of_week", "hour_of_day", "transaction_period", "possible_fraud_high_value", "possible_fraud_fast_transactions"]
+
+missing_columns = [col for col in required_columns if col not in df.columns]
+if missing_columns:
+    logger.warning(f"⚠️ As seguintes colunas não foram geradas corretamente: {missing_columns}")
+
+# 🔹 Criar `day_of_week`
+df = df.withColumn(
+    "day_of_week",
+    when(col("trans_date_trans_time").isNotNull(), date_format(col("trans_date_trans_time"), "E"))
+    .otherwise(lit("Erro - Data Inválida"))
+)
+
+# 🔹 Criar `hour_of_day`
+df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
+
+# 🔹 Criar `transaction_period` corretamente
+df = df.withColumn(
+    "transaction_period",
+    when((col("hour_of_day") >= 0) & (col("hour_of_day") < 6), "Madrugada")
+    .when((col("hour_of_day") >= 6) & (col("hour_of_day") < 12), "Manhã")
+    .when((col("hour_of_day") >= 12) & (col("hour_of_day") < 18), "Tarde")
+    .otherwise("Noite")
+)
+
+# 🔹 Criar `possible_fraud_high_value`
+df = df.withColumn("possible_fraud_high_value", (col("amt") > 10000).cast("integer"))
+
+# 📊 Criar janela para detecção de transações rápidas
+window_spec_time = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
+df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec_time))
+df = df.fillna({"time_diff": 0})  # Substitui NaN por 0
+
+df = df.withColumn("possible_fraud_fast_transactions", when(col("time_diff") < 10, 1).otherwise(0))
+
+# 📌 Debug: Mostrar valores únicos de `transaction_period`
+df.select("transaction_period").distinct().show()
+
 # 📂 Salvar dados processados
 logger.info("📂 Salvando dados processados...")
 df.write.mode("overwrite").parquet(OUTPUT_PATH)
