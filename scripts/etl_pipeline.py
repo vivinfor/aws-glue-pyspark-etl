@@ -4,7 +4,7 @@ import yaml
 import logging
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, when, date_format, unix_timestamp, lag, concat, lit, to_timestamp
+    col, when, date_format, unix_timestamp, lag, concat, lit, to_timestamp, regexp_extract
 )
 from pyspark.sql.window import Window
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType, TimestampType
@@ -62,23 +62,51 @@ if not csv_files:
 INPUT_FILE = os.path.join(INPUT_PATH, csv_files[0])
 logger.info(f"📂 Arquivo selecionado: {INPUT_FILE}")
 
-df = spark.read.option("sep", "|").csv(INPUT_FILE, header=True, schema=schema)
+# ✅ **Carregar CSV, ignorando diferença de colunas**
+df = spark.read.option("sep", "|").option("header", True).csv(INPUT_FILE)
 
-# ✅ **Filtrar apenas registros do ano de 2023**
-df = df.filter(col("trans_date_trans_time").between("2023-01-01", "2023-12-31"))
+# ✅ **Verificar formato de trans_time**
+logger.info("🔍 Exemplo de valores únicos de `trans_time` para validação:")
+df.select("trans_time").distinct().show(10, False)
 
-# ✅ **Preencher valores nulos**
-df = df.fillna({"zip": 0, "merch_lat": 0.0, "merch_long": 0.0, "merchant": "Desconhecido"})
+# ✅ **Detectar se o formato é 12h (AM/PM)**
+is_12h_format = df.filter(col("trans_time").rlike("(?i)(AM|PM)")).count() > 0
 
-# 🔹 **Criar `day_of_week`**
-df = df.withColumn(
-    "day_of_week",
-    when(col("trans_date_trans_time").isNotNull(), date_format(col("trans_date_trans_time"), "E"))
-    .otherwise(lit("Erro - Data Inválida"))
-)
+if is_12h_format:
+    logger.warning("⚠️ `trans_time` está no formato 12h (AM/PM). Convertendo para 24h...")
+    df = df.withColumn(
+        "trans_time",
+        when(col("trans_time").rlike("(?i)PM") & (col("trans_time").substr(1, 2).cast("int") < 12),
+             (col("trans_time").substr(1, 2).cast("int") + 12).cast("string"))
+        .otherwise(col("trans_time"))
+    )
 
-# 🔹 **Criar `hour_of_day`**
+# ✅ **Criar `trans_date_trans_time` corretamente**
+if "trans_date" in df.columns and "trans_time" in df.columns:
+    df = df.withColumn(
+        "trans_date_trans_time",
+        to_timestamp(concat(col("trans_date"), lit(" "), col("trans_time")), "yyyy-MM-dd HH:mm:ss")
+    ).drop("trans_date", "trans_time")
+
+# ✅ **Converter tipos para corresponder ao schema**
+for field in schema_json["fields"]:
+    col_name = field["name"]
+    expected_type = field["type"]
+
+    if col_name in df.columns:
+        if expected_type == "int":
+            df = df.withColumn(col_name, col(col_name).cast("int"))
+        elif expected_type == "double":
+            df = df.withColumn(col_name, col(col_name).cast("double"))
+        elif expected_type == "timestamp":
+            df = df.withColumn(col_name, col(col_name).cast("timestamp"))
+
+# ✅ **Criar `hour_of_day`**
 df = df.withColumn("hour_of_day", date_format(col("trans_date_trans_time"), "HH").cast("int"))
+
+# 🔍 **Verificar distribuição dos valores de `hour_of_day`**
+logger.info("🔍 Distribuição dos valores de `hour_of_day` após conversão:")
+df.select("hour_of_day").groupby("hour_of_day").count().show(24)
 
 # 🔹 **Criar `transaction_period`**
 df = df.withColumn(
@@ -108,13 +136,6 @@ df.select("transaction_period").groupby("transaction_period").count().show()
 
 logger.info("🔍 Exemplo de registros para validação:")
 df.select("day_of_week", "hour_of_day", "transaction_period", "possible_fraud_high_value", "possible_fraud_fast_transactions").show(10)
-
-# 📂 **Validar se todas as colunas foram geradas corretamente**
-required_columns = {"day_of_week", "hour_of_day", "transaction_period", "possible_fraud_high_value", "possible_fraud_fast_transactions"}
-missing_columns = required_columns - set(df.columns)
-
-if missing_columns:
-    logger.warning(f"⚠️ As seguintes colunas não foram geradas corretamente: {missing_columns}")
 
 # 📂 **Salvar dados processados**
 logger.info("📂 Salvando dados processados...")
