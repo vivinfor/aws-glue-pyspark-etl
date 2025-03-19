@@ -5,6 +5,8 @@ import yaml
 import pandas as pd
 import matplotlib.pyplot as plt
 from pyspark.sql import SparkSession
+from delta import configure_spark_with_delta_pip
+from pyspark.sql import SparkSession
 
 # 📌 Carregar configurações
 CONFIG_PATH = "config/config.yaml"
@@ -20,11 +22,12 @@ benchmark_path = "data/benchmark"
 os.makedirs(benchmark_path, exist_ok=True)
 
 # 🚀 Criar sessão Spark
-spark = SparkSession.builder \
+builder = SparkSession.builder \
     .appName("Benchmark Storage Formats") \
     .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
-    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
-    .getOrCreate()
+    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+
+spark = configure_spark_with_delta_pip(builder).getOrCreate()
 
 # 📂 Carregar dados processados
 df = spark.read.parquet(data_path)
