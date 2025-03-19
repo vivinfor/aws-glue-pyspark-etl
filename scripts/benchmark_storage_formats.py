@@ -4,9 +4,9 @@ import json
 import yaml
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from pyspark.sql import SparkSession
 from delta import configure_spark_with_delta_pip
-from pyspark.sql import SparkSession
 
 # 📌 Carregar configurações
 CONFIG_PATH = "config/config.yaml"
@@ -83,25 +83,27 @@ write_times = [res["write_time"] for res in results]
 read_times = [res["read_time"] for res in results]
 sizes = [res["size_mb"] for res in results]
 
-plt.figure(figsize=(12, 6))
+sns.set_style("whitegrid")
+sns.set_palette("pastel")
+plt.figure(figsize=(15, 5))
 
 # 🚀 Tempo de escrita
 plt.subplot(1, 3, 1)
-plt.bar(formats, write_times, color=["blue", "green", "red"])
+sns.barplot(x=formats, y=write_times)
 plt.xlabel("Formato")
 plt.ylabel("Tempo (s)")
 plt.title("Tempo de Escrita por Formato")
 
 # 🚀 Tempo de leitura
 plt.subplot(1, 3, 2)
-plt.bar(formats, read_times, color=["blue", "green", "red"])
+sns.barplot(x=formats, y=read_times)
 plt.xlabel("Formato")
 plt.ylabel("Tempo (s)")
 plt.title("Tempo de Leitura por Formato")
 
 # 🚀 Tamanho do arquivo gerado
 plt.subplot(1, 3, 3)
-plt.bar(formats, sizes, color=["blue", "green", "red"])
+sns.barplot(x=formats, y=sizes)
 plt.xlabel("Formato")
 plt.ylabel("Tamanho (MB)")
 plt.title("Tamanho do Arquivo por Formato")
