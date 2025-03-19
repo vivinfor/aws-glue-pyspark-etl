@@ -29,7 +29,7 @@ builder = SparkSession.builder \
 
 spark = configure_spark_with_delta_pip(builder).getOrCreate()
 
-# 📂 Carregar dados processados
+# 📚 Carregar dados processados
 df = spark.read.parquet(data_path)
 
 # 📊 **Benchmark de formatos de armazenamento**
@@ -53,7 +53,7 @@ for fmt in formats:
     # 📂 Medir tamanho do diretório
     total_size = sum(os.path.getsize(os.path.join(root, f)) for root, _, files in os.walk(format_path) for f in files) / (1024 * 1024)
     
-    # 📖 Medir tempo de leitura
+    # 💖 Medir tempo de leitura
     start_time = time.time()
     if fmt == "csv":
         df_test = spark.read.option("header", True).csv(format_path)
@@ -87,12 +87,16 @@ sns.set_style("whitegrid")
 sns.set_palette("pastel")
 plt.figure(figsize=(15, 5))
 
+# Ajustar escalas
+max_y = max(max(write_times), max(read_times), max(sizes))
+
 # 🚀 Tempo de escrita
 plt.subplot(1, 3, 1)
 sns.barplot(x=formats, y=write_times)
 plt.xlabel("Formato")
 plt.ylabel("Tempo (s)")
 plt.title("Tempo de Escrita por Formato")
+plt.ylim(0, max_y)
 
 # 🚀 Tempo de leitura
 plt.subplot(1, 3, 2)
@@ -100,6 +104,7 @@ sns.barplot(x=formats, y=read_times)
 plt.xlabel("Formato")
 plt.ylabel("Tempo (s)")
 plt.title("Tempo de Leitura por Formato")
+plt.ylim(0, max_y)
 
 # 🚀 Tamanho do arquivo gerado
 plt.subplot(1, 3, 3)
@@ -107,6 +112,7 @@ sns.barplot(x=formats, y=sizes)
 plt.xlabel("Formato")
 plt.ylabel("Tamanho (MB)")
 plt.title("Tamanho do Arquivo por Formato")
+plt.ylim(0, max_y)
 
 plt.tight_layout()
 plt.savefig(os.path.join(benchmark_path, "benchmark_comparison.png"))
