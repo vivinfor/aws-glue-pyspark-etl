@@ -29,38 +29,15 @@ Os dados processados são expostos através da **API FastAPI**, permitindo acess
 ---
 
 ## Diagrama do Fluxo de Dados
-
 ```mermaid
-graph LR;
-    
-    %% Subgrupos para melhor organização
-    subgraph Ingestão
-        A1[APIs]
-        A2[Bancos de Dados]
-        A3[Arquivos (S3)]
-    end
+sequenceDiagram
+    participant Fonte as Fonte de Dados (S3, API)
+    participant Glue as AWS Glue (PySpark)
+    participant Storage as Armazenamento (S3, PostgreSQL)
+    participant API as FastAPI
+    participant BI as Dashboard (Power BI)
 
-    subgraph Processamento
-        B[AWS Glue (PySpark)]
-    end
-
-    subgraph Armazenamento
-        C1[Dados Brutos (S3)]
-        C2[Métricas Processadas (PostgreSQL)]
-    end
-
-    subgraph Exposição
-        D[FastAPI]
-        E[Dashboard (Power BI)]
-    end
-
-    %% Fluxo de Dados
-    A1 -->|Extração| B
-    A2 -->|Extração| B
-    A3 -->|Extração| B
-
-    B -->|Transformação| C1
-    B -->|Carga| C2
-
-    D -->|Consulta| C2
-    E -->|Visualização| D
+    Fonte->>Glue: Extração de Dados
+    Glue->>Storage: Transformação e Armazenamento
+    API->>Storage: Consultas
+    BI->>API: Visualização de Dados
