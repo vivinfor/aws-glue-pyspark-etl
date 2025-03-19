@@ -3,7 +3,7 @@ import json
 import yaml
 import pandas as pd
 import matplotlib.pyplot as plt
-
+from datetime import datetime
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col, mean, stddev, unix_timestamp, lag, count, year, month, sum as spark_sum
@@ -13,6 +13,7 @@ from pyspark.sql.window import Window
 # 📌 Carregar configurações
 CONFIG_PATH = "config/config.yaml"
 SCHEMA_PATH = "config/schema.json"
+AUDIT_PATH = "data/audit_reports"
 
 if not os.path.exists(CONFIG_PATH):
     raise FileNotFoundError("❌ Arquivo 'config.yaml' não encontrado!")
@@ -22,69 +23,52 @@ if not os.path.exists(SCHEMA_PATH):
 with open(CONFIG_PATH, "r") as f:
     config = yaml.safe_load(f)
 
-with open(SCHEMA_PATH, "r") as f:
-    schema = json.load(f)
-
-DATA_PATH = os.path.abspath(config["data_path"])
-AUDIT_PATH = os.path.join(DATA_PATH, "audit_report")
+data_path = os.path.abspath(config["data_path"])
 
 # 🚀 Criar sessão Spark
 spark = SparkSession.builder.appName("Audit Report").getOrCreate()
 
 # 📂 Carregar dados processados
-df = spark.read.parquet(DATA_PATH)
+df = spark.read.parquet(data_path)
+
+auditoria = {
+    "execution_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    "total_records": df.count(),
+}
 
 # 🛑 **Filtrar registros inválidos**
 invalid_records = df.filter(col("amt").isNull() | col("is_fraud").isNull())
+auditoria["invalid_records"] = invalid_records.count()
 
 # ⚠️ **Detectar outliers em `amt`**
 amt_stats = df.select(mean("amt").alias("mean_amt"), stddev("amt").alias("std_amt")).collect()[0]
 mean_amt, std_amt = amt_stats["mean_amt"], amt_stats["std_amt"]
-
 outliers = df.filter((col("amt") > mean_amt + 3 * std_amt) | (col("amt") < mean_amt - 3 * std_amt))
+auditoria["outliers_detected"] = outliers.count()
 
 # 🚨 **Detectar possíveis fraudes**
 high_value_frauds = df.filter(col("amt") > 10000)
 window_spec = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
 df = df.withColumn("time_diff", unix_timestamp(col("trans_date_trans_time")) - lag(unix_timestamp(col("trans_date_trans_time"))).over(window_spec))
 fast_transactions = df.filter(col("time_diff") < 10)
+auditoria["high_value_frauds"] = high_value_frauds.count()
+auditoria["fast_transactions"] = fast_transactions.count()
 
-df = df.withColumn("date", col("trans_date_trans_time").cast("date"))
-multi_state_purchases = df.groupBy("cc_num", "date").agg(count("state").alias("state_count")).filter(col("state_count") > 1)
+# 📊 **Resumo financeiro**
+auditoria["total_transaction_amount"] = df.select(spark_sum("amt")).collect()[0][0]
+auditoria["total_fraud_amount"] = df.filter(col("is_fraud") == 1).select(spark_sum("amt")).collect()[0][0]
 
-# 📌 Criar pasta de auditoria se não existir
-if not os.path.exists(AUDIT_PATH):
-    os.makedirs(AUDIT_PATH)
+# 📂 **Criar diretório de auditoria se não existir**
+os.makedirs(AUDIT_PATH, exist_ok=True)
 
-# 📂 **Salvar registros inválidos**
-if invalid_records.count() > 0:
-    invalid_records.toPandas().to_csv(os.path.join(AUDIT_PATH, "invalid_records.csv"), index=False, encoding="utf-8")
-    print(f"📂 Registros inválidos salvos para auditoria: {os.path.join(AUDIT_PATH, 'invalid_records.csv')}")
+# 📂 **Salvar relatório consolidado em JSON**
+audit_json_path = os.path.join(AUDIT_PATH, "audit_summary.json")
+with open(audit_json_path, "w", encoding="utf-8") as f:
+    json.dump(auditoria, f, indent=4)
+print(f"📂 Relatório de auditoria salvo: {audit_json_path}")
 
-# 📂 **Salvar outliers**
-if outliers.count() > 0:
-    outliers.toPandas().to_csv(os.path.join(AUDIT_PATH, "outliers.csv"), index=False, encoding="utf-8")
-    print(f"📂 Outliers salvos para auditoria: {os.path.join(AUDIT_PATH, 'outliers.csv')}")
-
-# 📂 **Salvar fraudes suspeitas**
-if high_value_frauds.count() > 0:
-    high_value_frauds.toPandas().to_csv(os.path.join(AUDIT_PATH, "high_value_frauds.csv"), index=False, encoding="utf-8")
-    print(f"📂 Transações de alto valor salvas para auditoria: {os.path.join(AUDIT_PATH, 'high_value_frauds.csv')}")
-
-if fast_transactions.count() > 0:
-    fast_transactions.toPandas().to_csv(os.path.join(AUDIT_PATH, "fast_transactions.csv"), index=False, encoding="utf-8")
-    print(f"📂 Transações rápidas suspeitas salvas para auditoria: {os.path.join(AUDIT_PATH, 'fast_transactions.csv')}")
-
-if multi_state_purchases.count() > 0:
-    multi_state_purchases.toPandas().to_csv(os.path.join(AUDIT_PATH, "multi_state_purchases.csv"), index=False, encoding="utf-8")
-    print(f"📂 Cartões usados em múltiplos estados no mesmo dia salvos para auditoria: {os.path.join(AUDIT_PATH, 'multi_state_purchases.csv')}")
-
-# 📊 **Total de transações e fraudes em 2023**
+# 📊 **Gerar gráfico de fraudes por mês**
 df_2023 = df.filter(year(col("trans_date_trans_time")) == 2023)
-total_transactions_2023 = df_2023.count()
-total_frauds_2023 = df_2023.filter(col("is_fraud") == 1).count()
-
-# 📊 **Fraudes por mês em 2023**
 fraud_by_month_2023 = (
     df_2023.filter(col("is_fraud") == 1)
     .groupBy(month(col("trans_date_trans_time")).alias("month"))
@@ -93,19 +77,7 @@ fraud_by_month_2023 = (
 )
 fraud_by_month_df = fraud_by_month_2023.toPandas()
 fraud_by_month_df.rename(columns={"count": "total_frauds"}, inplace=True)
-fraud_by_month_df.to_csv(os.path.join(AUDIT_PATH, "fraud_by_month_2023.csv"), index=False, encoding="utf-8")
 
-# 📊 **Verificação de transações duplicadas (`cc_num`, `trans_num`)**
-duplicates = df.groupBy("cc_num", "trans_num").count().filter(col("count") > 1)
-if duplicates.count() > 0:
-    duplicates.toPandas().to_csv(os.path.join(AUDIT_PATH, "duplicate_transactions.csv"), index=False, encoding="utf-8")
-    print(f"📂 Transações duplicadas salvas para auditoria: {os.path.join(AUDIT_PATH, 'duplicate_transactions.csv')}")
-
-# 📊 **Comparação de valores totais `amt`**
-total_amt = df.select(spark_sum("amt")).collect()[0][0]
-total_fraud_amt = df.filter(col("is_fraud") == 1).select(spark_sum("amt")).collect()[0][0]
-
-# 📊 **Gerar gráfico de fraudes por mês**
 plt.figure(figsize=(10, 5))
 plt.bar(fraud_by_month_df["month"], fraud_by_month_df["total_frauds"], color="red")
 plt.xlabel("Mês")
@@ -118,10 +90,8 @@ plt.close()
 
 print(f"📊 Evolução das fraudes por mês salva como gráfico.")
 
-print(f"📊 Total de transações: {total_amt:.2f}")
-print(f"📊 Total de fraudes em valor: {total_fraud_amt:.2f}")
-
-print("\n🚀 Relatório de auditoria concluído!")
+# 🚀 Relatório finalizado
+print("\n✅ Relatório de auditoria concluído com sucesso!")
 
 # 🛑 Encerrar Spark
 spark.stop()

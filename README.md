@@ -3,7 +3,7 @@
 ## 📌 **Objetivo**
 Este projeto implementa um **pipeline de ETL escalável** combinando **AWS Glue, PySpark e FastAPI** para processamento, transformação e disponibilização de dados transacionais.
 
-Além das etapas tradicionais de ETL, este projeto se destaca por:  
+Além das etapas tradicionais de ETL, este projeto se destaca por:
 ✅ **Otimização de consultas SQL e PySpark** para melhor performance.  
 ✅ **Uso de uma abordagem híbrida** → **Banco de dados para métricas calculadas** e **Parquet para armazenar dados brutos e históricos**.  
 ✅ **Exposição de dados via FastAPI**, centralizando cálculos no backend para evitar inconsistências.  
@@ -38,6 +38,7 @@ Este projeto não se trata apenas de carregar um conjunto de dados, mas sim de *
 💾 **Processamento e Transformação**  
 ✅ **AWS Glue & PySpark** → Para manipulação de grandes volumes de dados.  
 ✅ **SQL (AWS Athena)** → Para consultas eficientes e validação de dados.  
+✅ **Kafka (Futuro)** → Para ingestão de dados em tempo real.
 
 📊 **Análise e Visualização**  
 ✅ **Jupyter Notebook** → Para análise exploratória e experimentação com consultas otimizadas.  
@@ -48,6 +49,7 @@ Este projeto não se trata apenas de carregar um conjunto de dados, mas sim de *
 ✅ **AWS S3 + Parquet** → Para armazenamento eficiente dos dados brutos e históricos.  
 ✅ **PostgreSQL** → Para armazenamento de métricas pré-calculadas e acesso rápido na API.  
 ✅ **Delta Lake** → Suporte a atualizações incrementais.  
+✅ **MySQL / Redshift / Snowflake (Futuro)** → Suporte a múltiplas fontes de dados relacionais.
 
 ---
 
@@ -110,14 +112,16 @@ aws-glue-pyspark-etl/
 ├── power_bi/              # Dashboard Power BI
 ├── config/                
 │   ├── schema.json        # Definição do schema dos dados
-│   ├── settings.yaml      # Configurações gerais
+│   ├── config.yaml      # Configurações gerais
 └── README.md              # Documentação do projeto
 ```
 
 ---
 
 ## 🔄 **Próximos Passos**
-✅ **Implementação da API**  para expor métricas calculadas, garantindo acesso rápido e estruturado aos dados.
+✅ **Suporte a múltiplas fontes de dados** (S3, Bancos SQL, Kafka, etc.).  
+✅ **Automação e agendamento do ETL** via Apache Airflow.  
+✅ **Implementação da API** para expor métricas calculadas.  
 ✅ **Monitoramento da API** para acompanhar tempo de resposta e acessos.  
 ✅ **Criação de uma camada de cache (Redis) para reduzir consultas repetitivas.**  
 ✅ **Aprimorar detecção de anomalias com aprendizado de máquina.**  
@@ -127,4 +131,3 @@ aws-glue-pyspark-etl/
 ---
 
 📌 **Desenvolvido por** [Viviana](https://github.com/vivinfor) 🚀
-
