@@ -93,7 +93,7 @@ sns.barplot(x=formats, y=write_times)
 plt.xlabel("Formato")
 plt.ylabel("Tempo (s)")
 plt.title("Tempo de Escrita por Formato")
-plt.ylim(0, max(write_times) * 1.2)  # Ajuste para escala igual
+plt.ylim(0, max(write_times) * 1.2)
 
 # 🚀 Tempo de leitura (escala logarítmica)
 plt.subplot(1, 3, 2)
@@ -101,7 +101,7 @@ sns.barplot(x=formats, y=read_times)
 plt.xlabel("Formato")
 plt.ylabel("Tempo (s) (log)")
 plt.title("Tempo de Leitura por Formato")
-plt.yscale("log")  # Escala logarítmica para leitura
+plt.ylim(0, max(read_times) * 1.2) 
 
 # 🚀 Tamanho do arquivo gerado
 plt.subplot(1, 3, 3)
@@ -109,7 +109,7 @@ sns.barplot(x=formats, y=sizes)
 plt.xlabel("Formato")
 plt.ylabel("Tamanho (MB)")
 plt.title("Tamanho do Arquivo por Formato")
-plt.ylim(0, max(sizes) * 1.2)  # Ajuste para escala igual
+plt.ylim(0, max(read_times) * 1.2) 
 
 plt.tight_layout()
 plt.savefig(os.path.join(benchmark_path, "benchmark_comparison.png"))
