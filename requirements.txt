@@ -1,0 +1,11 @@
+pyspark
+pandas
+fastapi
+uvicorn
+boto3
+pyyaml
+jupyter
+pyarrow
+matplotlib
+seaborn
+delta-spark

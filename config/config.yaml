@@ -1,0 +1,34 @@
+environment: local  # ou "aws"
+
+raw_data_path: "data/raw/"
+data_path: "data/processed/"
+optimized_data_path: "data/optimized"
+benchmark_output:
+  csv: "data/benchmark/csv/"
+  parquet: "data/benchmark/parquet/"
+  delta: "data/benchmark/delta/"
+
+# Configuração para leitura de fontes externas (bancos, S3, Kafka, etc.)
+data_sources:
+  s3_input: "s3://seu-bucket/dados-brutos.csv"
+  aws_s3_output: "s3://seu-bucket/dados-processados/"
+  mysql:
+    host: "localhost"
+    port: 3306
+    database: "mydb"
+    user: "user"
+    password: "password"
+  kafka:
+    topic: "transactions"
+    bootstrap_servers: "localhost:9092"
+
+# Definições do processamento
+partition_keys: ["day_of_week", "transaction_period"]
+use_z_score_filter: true  # Habilitar ou não o filtro de outliers
+compression: "snappy"  # Formato de compressão para Parquet
+
+# Opções para habilitar/desabilitar testes no benchmark
+benchmark_options:
+  test_write: true
+  test_read: true
+  measure_size: true

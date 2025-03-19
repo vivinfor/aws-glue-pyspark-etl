@@ -1,0 +1,60 @@
+validation:
+  missing_values:
+    critical:
+      - cc_num
+      - amt
+      - is_fraud
+    non_critical:
+      merchant: "Desconhecido"
+      city: "Não informado"
+      state: "Não informado"
+      lat: 0.0
+      long: 0.0
+      merch_lat: 0.0
+      merch_long: 0.0
+  type_validation:
+    string:
+      - ssn
+      - cc_num
+      - first
+      - last
+      - gender
+      - street
+      - city
+      - state
+      - job
+      - category
+      - merchant
+      - transaction_period
+      - day_of_week
+    integer:
+      - zip
+      - city_pop
+      - unix_time
+      - is_fraud
+      - hour_of_day
+      - possible_fraud_high_value
+      - possible_fraud_fast_transactions
+    double:
+      - lat
+      - long
+      - amt
+      - merch_lat
+      - merch_long
+    timestamp:
+      - trans_date_trans_time
+  outlier_detection:
+    amt:
+      method: "zscore"
+      threshold: 3
+  fraud_detection:
+    high_value_threshold: 10000
+    fast_transaction_time: 10
+    multi_state_check: true
+  duplicates:
+    check: true
+  transaction_period_mapping:
+    Madrugada: [0, 1, 2, 3, 4, 5]
+    Manhã: [6, 7, 8, 9, 10, 11]
+    Tarde: [12, 13, 14, 15, 16, 17]
+    Noite: [18, 19, 20, 21, 22, 23]

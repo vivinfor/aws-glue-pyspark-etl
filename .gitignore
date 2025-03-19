@@ -1,0 +1,23 @@
+# Ignorar arquivos e pastas desnecessárias
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.env
+logs/
+data/dados-processados/
+notebooks/__pycache__/
+# Ignorar arquivos CSV e a pasta de dados
+data/
+*.csv
+
+# Ignorar arquivos temporários e do ambiente virtual
+venv/
+__pycache__/
+*.log
+*.csv
+*.parquet
+data/raw/
+data/processed/
+data/final/
