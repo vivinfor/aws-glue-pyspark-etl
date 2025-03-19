@@ -1,26 +1,34 @@
-# **AWS Glue & PySpark ETL**
+# **AWS Glue, PySpark & FastAPI ETL**
 
 ## 📌 **Objetivo**
-Este projeto implementa um **pipeline de ETL escalável** usando **AWS Glue e PySpark** para processamento, transformação e validação de dados transacionais.  
+Este projeto implementa um **pipeline de ETL escalável** combinando **AWS Glue, PySpark e FastAPI** para processamento, transformação e disponibilização de dados transacionais.
 
 Além das etapas tradicionais de ETL, este projeto se destaca por:  
 ✅ **Otimização de consultas SQL e PySpark** para melhor performance.  
-✅ **Comparação entre diferentes abordagens** (SQL puro vs. PySpark vs. Delta Lake).  
+✅ **Uso de uma abordagem híbrida** → **Banco de dados para métricas calculadas** e **Parquet para armazenar dados brutos e históricos**.  
+✅ **Exposição de dados via FastAPI**, centralizando cálculos no backend para evitar inconsistências.  
 ✅ **Criação de um dataset otimizado para Power BI** e análise de fraudes financeiras.  
 ✅ **Execução do ETL validada tanto no VS Code (Spark Standalone) quanto no Jupyter.**  
 
 ---
 
-## 🔹 **Fonte dos Dados**
-Os dados vêm de um dataset público do Kaggle, gerado pelo **Sparkov Data Generation**, simulando transações financeiras de **janeiro a dezembro de 2023**.
+## 👉 **Origem e Estrutura dos Dados**
 
-### 📌 **Dataset**:
-[Kaggle - Fraude em Transações de Cartão de Crédito](https://www.kaggle.com/competitions/fraude-em-transaes-de-carto-de-crdito/data)
+Este projeto foi desenvolvido para processar e otimizar **transações financeiras fictícias**, aplicando regras de validação e detecção de fraudes para garantir a qualidade dos dados antes da análise.
 
-**Principais colunas:**
-- **Dados da transação:** Data, valor (`amt`), comerciante (`merchant`), categoria (`category`).
-- **Dados do cliente:** Nome, localização, gênero, profissão.
-- **Sinalizador de fraude (`is_fraud`).**
+### 📚 **Estrutura dos Dados**
+
+Os dados são estruturados para incluir:
+
+✅ **Detalhes da transação** → Data, valor (`amt`), comerciante (`merchant`), categoria (`category`).  
+✅ **Informações do cliente** → Localização, profissão, identificador único.  
+✅ **Sinalização de fraudes** → Identificação de padrões suspeitos para análise posterior.  
+
+### 👀 **Foco do Projeto**
+
+Este projeto não se trata apenas de carregar um conjunto de dados, mas sim de **demonstrar boas práticas de ETL, otimização de dados e criação de insights estruturados para análise de fraudes**.
+
+💡 **Importante:** O pipeline foi projetado para garantir **coerência e integridade** nas informações processadas, aplicando validações antes da carga e garantindo que os dados analisados sejam consistentes com as regras de negócio definidas.
 
 ---
 
@@ -32,55 +40,63 @@ Os dados vêm de um dataset público do Kaggle, gerado pelo **Sparkov Data Gener
 📊 **Análise e Visualização**  
 ✅ **Jupyter Notebook** → Para análise exploratória e experimentação com consultas otimizadas.  
 ✅ **Power BI** → Para construção de **dashboards interativos** sobre fraudes.  
+✅ **FastAPI** → Exposição dos cálculos como API para garantir consistência.  
 
 🚀 **Armazenamento e Integração**  
-✅ **AWS S3** → Para armazenamento eficiente dos dados.  
-✅ **Parquet & Delta Lake** → Formatos otimizados para leitura rápida no Power BI.  
+✅ **AWS S3 + Parquet** → Para armazenamento eficiente dos dados brutos e históricos.  
+✅ **PostgreSQL** → Para armazenamento de métricas pré-calculadas e acesso rápido na API.  
+✅ **Delta Lake** → Suporte a atualizações incrementais.  
 
 ---
 
-## 🚀 **Pipeline de ETL e Otimizações**
-🔹 **1️⃣ Extração** → Carregamento do dataset bruto (CSV).  
-🔹 **2️⃣ Transformação (ETL no PySpark)**
-   - **Remoção de nulos e duplicatas.**
-   - **Detecção e remoção de outliers com Z-score.**
-   - **Conversão do schema para garantir consistência (ex: FLOAT → DOUBLE).**
-   - **Criação de novas colunas úteis (hora, período do dia, tempo entre transações).**
-   - **Comparação entre SQL puro, PySpark e Delta Lake.**
-🔹 **3️⃣ Salvamento e Otimização**
-   - **Formato Parquet** → Arquivo leve e eficiente para análise.
-   - **Delta Lake** → Para suporte a updates incrementais.
-   - **Comparação entre modos de escrita e impacto na performance.**
-🔹 **4️⃣ Análise e Relatórios**
-   - **Dashboards no Power BI** conectados diretamente ao dataset otimizado.
+## 🚀 **Arquitetura Híbrida (Parquet + Banco de Dados + API)**
+
+Este projeto adota uma **abordagem híbrida**, combinando **Parquet, banco de dados e API** para maximizar desempenho e escalabilidade:
+
+1️⃣ **Parquet (AWS S3 / Local)** → Armazena **dados brutos e históricos** otimizados para leitura no Power BI.  
+2️⃣ **PostgreSQL** → Centraliza **métricas calculadas**, garantindo performance para análises frequentes.  
+3️⃣ **FastAPI** → Expõe **dados pré-processados** para evitar cálculos repetitivos no Power BI.  
+
+### **📌 Vantagens da Arquitetura**
+✅ **Centralização dos cálculos no Python** evita inconsistências entre usuários.  
+✅ **Banco de Dados para métricas** → Respostas rápidas via API, reduzindo processamento no Power BI.  
+✅ **Parquet para histórico** → Mantém dados brutos disponíveis para consultas avançadas.  
+✅ **API padronizada** → Integrações consistentes entre aplicações e análises de negócio.  
 
 ---
 
-## 📊 **Otimização de Consultas SQL e PySpark**
-- **🔥 Teste de performance:** Tempo de execução com SQL puro vs. PySpark.
-- **📈 Estratégias aplicadas para reduzir tempo de leitura:**
-  ✅ **Conversão de FLOAT para DOUBLE** antes do salvamento em Parquet.  
-  ✅ **Uso de particionamento inteligente** (`partitionBy("category")`).  
-  ✅ **Reparticionamento do DataFrame para paralelismo eficiente** (`df.repartition(4)`).  
-  ✅ **Comparação entre Parquet e Delta Lake** em termos de eficiência.  
+## 🚀 **Endpoints da API FastAPI**
+A API expõe métricas **pré-calculadas**, reduzindo a carga computacional no Power BI e padronizando cálculos.  
+
+| Método | Endpoint | Descrição |
+|--------|---------|------------|
+| **GET** | `/transactions/summary` | Retorna total de transações, fraudes e média de valores. |
+| **GET** | `/fraud/monthly` | Retorna o total de fraudes por mês. |
+| **GET** | `/fraud/category` | Retorna fraudes agregadas por categoria de transação. |
+| **GET** | `/fraud/high_value` | Lista transações suspeitas acima de $10.000. |
+| **GET** | `/anomalies/outliers` | Identifica transações com valores fora do padrão. |
+
+**Exemplo de Uso:**
+```sh
+curl -X GET "http://localhost:8000/transactions/summary"
+```
 
 ---
 
-## 🔹 **Formato do Arquivo Final para Power BI**
+## 📊 **Formato do Arquivo Final para Power BI**
 | Formato | Motivo |
 |---------|--------|
 | **Parquet** | 🚀 Compactação melhor e leitura rápida no Power BI. |
-| **Delta Lake** | 🔄 Permite atualizações incrementais nos dados. |
+| **PostgreSQL** | 🔄 Permite armazenamento de métricas calculadas para acesso via API. |
 | **CSV** | ❌ Não utilizado, pois ocupa mais espaço e tem leitura lenta. |
 
 📌 **Decisão final:**  
-- O **Parquet foi escolhido** para o dataset final devido à **eficiência de leitura** no Power BI.  
-- Caso seja necessário **atualizações incrementais**, a versão **Delta Lake** pode ser ativada.
+- **API FastAPI + PostgreSQL** para métricas acessadas com frequência.  
+- **Parquet para armazenamento de dados históricos e carregamento no Power BI.**  
 
 ---
 
 ## 👉 Estrutura do Projeto
-
 
 ```md
 aws-glue-pyspark-etl/
@@ -88,6 +104,7 @@ aws-glue-pyspark-etl/
 ├── notebooks/             # Jupyter Notebook para análise exploratória
 │   ├── 01_data_exploration.ipynb  # Análise exploratória, otimização e insights
 ├── scripts/               # Código ETL em Python (VS Code)
+├── api/                   # Implementação da API FastAPI
 ├── power_bi/              # Dashboard Power BI
 ├── config/                
 │   ├── schema.json        # Definição do schema dos dados
@@ -95,61 +112,16 @@ aws-glue-pyspark-etl/
 └── README.md              # Documentação do projeto
 ```
 
-
-## 📚 Regras de Negócio
-
-As principais regras de negócio aplicadas neste projeto incluem:
-
-1. **Classificação de Transações**:  
-   - Transações são categorizadas automaticamente com base em padrões identificados nos dados históricos.
-   - O modelo de machine learning pode ser treinado para sugerir categorias para novas transações.
-
-2. **Detecção de Fraudes**:  
-   - Um pipeline de análise de fraudes identifica transações suspeitas com base em padrões de comportamento.
-   - Alertas são gerados para qualquer transação acima de um limiar estatístico.
-
-3. **Agregação de Dados por Categoria e Período**:  
-   - Os dados são particionados por `category` para facilitar consultas e otimizar o desempenho.
-   - Os usuários podem visualizar gastos agregados por período (diário, semanal, mensal).
-
-4. **Conversão de Moedas** *(se aplicável)*:  
-   - Para transações em diferentes moedas, são aplicadas taxas de conversão para padronizar os valores.
-
-5. **Dashboards Interativos para Tomada de Decisão**:  
-   - O Power BI é utilizado para criar **dashboards gerenciais** com análises detalhadas de transações e fraudes.
-   - KPIs principais incluem **gastos por categoria, evolução mensal de fraudes, e padrões de comportamento de clientes**.
-
----
-
-## 📊 Visuais Construídos no Power BI
-
-![alt text](image.png)
-
----
-
-## 📊 **Resultados e Insights**
-✅ **Melhoria de performance nas consultas** após conversão e otimização.  
-✅ **Arquivos otimizados em Parquet**, reduzindo tempo de carregamento no Power BI.  
-✅ **Dashboards interativos** analisando padrões de fraudes em transações.  
-
-🚀 **Técnicas aplicadas para acelerar consultas**  
-- **Particionamento correto dos dados** (`partitionBy("category")`).  
-- **Uso de formatos eficientes** para integração com Power BI.  
-- **Comparação de estratégias de escrita e impacto na performance.**  
-
----
-
-## 📔 **Notebooks Criados**
-1. **01_data_exploration.ipynb** → **Exploração, validação e otimização do dataset**.  
-
-📌 **Diferente de projetos convencionais**, **toda a etapa de ETL foi validada no VS Code** para garantir um fluxo de dados escalável e eficiente, enquanto **o notebook foca na análise e otimização de consultas para exploração dos dados**.
-
 ---
 
 ## 🔄 **Próximos Passos**
-✅ **Adicionar logs e monitoramento da performance do ETL.**  
-✅ **Testar diferentes tamanhos de partições e impacto no carregamento do Power BI.**  
+✅ **Monitoramento da API** para acompanhar tempo de resposta e acessos.  
+✅ **Criação de uma camada de cache (Redis) para reduzir consultas repetitivas.**  
+✅ **Aprimorar detecção de anomalias com aprendizado de máquina.**  
+✅ **Testar escalabilidade com maior volume de dados.**  
+✅ **Criar documentação completa para consumo da API.**  
 
 ---
 
-📌 **Desenvolvido por** [Viviana](https://github.com/vivinfor)  
+📌 **Desenvolvido por** [Viviana](https://github.com/vivinfor) 🚀
+
