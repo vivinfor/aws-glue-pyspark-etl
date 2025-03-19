@@ -1,18 +1,14 @@
 import os
 import time
+import json
 import yaml
-import shutil
-import logging
-import pyspark
+import pandas as pd
+import matplotlib.pyplot as plt
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col
 
-# 📌 Configuração de logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
-
-# 📂 Carregar configuração do YAML
+# 📌 Carregar configurações
 CONFIG_PATH = "config/config.yaml"
+
 if not os.path.exists(CONFIG_PATH):
     raise FileNotFoundError("❌ Arquivo 'config.yaml' não encontrado!")
 
@@ -20,73 +16,94 @@ with open(CONFIG_PATH, "r") as f:
     config = yaml.safe_load(f)
 
 data_path = os.path.abspath(config["optimized_data_path"])
-benchmark_output = config["benchmark_output"]
-benchmark_options = config["benchmark_options"]
+benchmark_path = "data/benchmark"
+os.makedirs(benchmark_path, exist_ok=True)
 
 # 🚀 Criar sessão Spark
 spark = SparkSession.builder.appName("Benchmark Storage Formats").getOrCreate()
-logger.info("💻 Sessão Spark iniciada.")
 
 # 📂 Carregar dados processados
-logger.info("📂 Carregando dados processados para benchmark...")
 df = spark.read.parquet(data_path)
-total_records = df.count()
-logger.info(f"✅ Total de registros carregados: {total_records}")
 
-# 📌 Função para medir tempo de escrita
+# 📊 **Benchmark de formatos de armazenamento**
+formats = ["csv", "parquet", "delta"]
+results = []
 
-def measure_write_time(df, format_name, output_path, partition_col=None):
-    if os.path.exists(output_path):
-        shutil.rmtree(output_path)  # Remover diretório anterior
+for fmt in formats:
+    format_path = os.path.join(benchmark_path, fmt)
+    os.makedirs(format_path, exist_ok=True)
     
+    # 📝 Medir tempo de escrita
     start_time = time.time()
-    if partition_col:
-        df.write.mode("overwrite").partitionBy(partition_col).format(format_name).save(output_path)
-    else:
-        df.write.mode("overwrite").format(format_name).save(output_path)
-    elapsed_time = time.time() - start_time
+    if fmt == "csv":
+        df.write.mode("overwrite").option("header", True).csv(format_path)
+    elif fmt == "parquet":
+        df.write.mode("overwrite").parquet(format_path)
+    elif fmt == "delta":
+        df.write.mode("overwrite").format("delta").save(format_path)
+    write_time = time.time() - start_time
     
-    return elapsed_time
-
-# 📌 Função para medir tempo de leitura
-
-def measure_read_time(spark, format_name, input_path):
+    # 📂 Medir tamanho do diretório
+    total_size = sum(os.path.getsize(os.path.join(root, f)) for root, _, files in os.walk(format_path) for f in files) / (1024 * 1024)
+    
+    # 📖 Medir tempo de leitura
     start_time = time.time()
-    df_read = spark.read.format(format_name).load(input_path)
-    df_read.count()  # Aciona a leitura
-    elapsed_time = time.time() - start_time
-    return elapsed_time
-
-# 📌 Benchmark dos formatos
-benchmark_results = {}
-
-for format_name, path in benchmark_output.items():
-    logger.info(f"🚀 Testando formato: {format_name.upper()}")
-    benchmark_results[format_name] = {}
+    if fmt == "csv":
+        df_test = spark.read.option("header", True).csv(format_path)
+    elif fmt == "parquet":
+        df_test = spark.read.parquet(format_path)
+    elif fmt == "delta":
+        df_test = spark.read.format("delta").load(format_path)
+    read_time = time.time() - start_time
     
-    if benchmark_options["test_write"]:
-        write_time = measure_write_time(df, format_name, path)
-        benchmark_results[format_name]["write_time"] = round(write_time, 3)
-        logger.info(f"✅ Tempo de escrita ({format_name}): {write_time:.3f} segundos")
-    
-    if benchmark_options["test_read"]:
-        read_time = measure_read_time(spark, format_name, path)
-        benchmark_results[format_name]["read_time"] = round(read_time, 3)
-        logger.info(f"✅ Tempo de leitura ({format_name}): {read_time:.3f} segundos")
-    
-    if benchmark_options["measure_size"]:
-        total_size = sum(os.path.getsize(os.path.join(root, file)) for root, _, files in os.walk(path) for file in files)
-        benchmark_results[format_name]["size_mb"] = round(total_size / (1024 * 1024), 2)
-        logger.info(f"✅ Tamanho do arquivo ({format_name}): {total_size / (1024 * 1024):.2f} MB")
+    # 📊 Armazenar resultados
+    results.append({
+        "format": fmt,
+        "write_time": write_time,
+        "read_time": read_time,
+        "size_mb": total_size
+    })
 
-# 📂 **Salvar relatório consolidado em JSON**
-benchmark_report_path = "data/benchmark/benchmark_results.json"
-os.makedirs("data/benchmark", exist_ok=True)
+# 📂 Salvar relatório em JSON
+benchmark_json_path = os.path.join(benchmark_path, "benchmark_results.json")
+with open(benchmark_json_path, "w", encoding="utf-8") as f:
+    json.dump(results, f, indent=4)
+print(f"📂 Relatório de benchmark salvo: {benchmark_json_path}")
 
-import json
-with open(benchmark_report_path, "w", encoding="utf-8") as f:
-    json.dump(benchmark_results, f, indent=4)
-logger.info(f"📂 Benchmark salvo: {benchmark_report_path}")
+# 📊 **Gerar gráficos comparativos**
+formats = [res["format"] for res in results]
+write_times = [res["write_time"] for res in results]
+read_times = [res["read_time"] for res in results]
+sizes = [res["size_mb"] for res in results]
 
-logger.info("🚀 Benchmark concluído!")
+plt.figure(figsize=(12, 6))
+
+# 🚀 Tempo de escrita
+plt.subplot(1, 3, 1)
+plt.bar(formats, write_times, color=["blue", "green", "red"])
+plt.xlabel("Formato")
+plt.ylabel("Tempo (s)")
+plt.title("Tempo de Escrita por Formato")
+
+# 🚀 Tempo de leitura
+plt.subplot(1, 3, 2)
+plt.bar(formats, read_times, color=["blue", "green", "red"])
+plt.xlabel("Formato")
+plt.ylabel("Tempo (s)")
+plt.title("Tempo de Leitura por Formato")
+
+# 🚀 Tamanho do arquivo gerado
+plt.subplot(1, 3, 3)
+plt.bar(formats, sizes, color=["blue", "green", "red"])
+plt.xlabel("Formato")
+plt.ylabel("Tamanho (MB)")
+plt.title("Tamanho do Arquivo por Formato")
+
+plt.tight_layout()
+plt.savefig(os.path.join(benchmark_path, "benchmark_comparison.png"))
+plt.close()
+print(f"📊 Gráficos de benchmark salvos como imagem.")
+
+# 🚀 Finalização
+print("✅ Benchmark concluído com sucesso!")
 spark.stop()
