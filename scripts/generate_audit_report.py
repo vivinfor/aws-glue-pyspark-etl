@@ -112,6 +112,7 @@ axes[1].set_title("Distribuição de Fraudes por Categoria")
 df_pandas = df.toPandas()
 sns.boxplot(x=df_pandas["is_fraud"], y=df_pandas["amt"], ax=axes[2])
 axes[2].set_xticklabels(["Transações Normais", "Fraudes"])
+axes[2].set_xlabel("Tipo de Transação")
 axes[2].set_title("Dispersão de Valores de Transações")
 
 plt.tight_layout()
