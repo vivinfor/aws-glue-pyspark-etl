@@ -47,9 +47,15 @@ window_spec = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans
 df = df.withColumn("time_diff", unix_timestamp(col("trans_date_trans_time")) - lag(unix_timestamp(col("trans_date_trans_time"))).over(window_spec))
 fast_transactions = df.filter(col("time_diff") < 10).count()
 total_fraud_cases = df.filter(col("is_fraud") == 1).count()
-fraud_by_category = df.filter(col("is_fraud") == 1)
-    .groupBy("category").count().orderBy(col("count").desc())
-    .toPandas().set_index("category")["count"].to_dict()
+
+fraud_by_category = (
+    df.filter(col("is_fraud") == 1)
+    .groupBy("category")
+    .count()
+    .orderBy(col("count").desc())
+    .toPandas()
+    .set_index("category")["count"].to_dict()
+)
 
 # 📊 **Resumo financeiro**
 total_transaction_amount = df.select(spark_sum("amt")).collect()[0][0]
