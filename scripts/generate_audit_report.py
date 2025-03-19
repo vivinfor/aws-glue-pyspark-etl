@@ -23,7 +23,7 @@ if not os.path.exists(SCHEMA_PATH):
 with open(CONFIG_PATH, "r") as f:
     config = yaml.safe_load(f)
 
-data_path = os.path.abspath(config["data_path"])
+data_path = os.path.abspath(config["optimized_data_path"])
 
 # 🚀 Criar sessão Spark
 spark = SparkSession.builder.appName("Audit Report").getOrCreate()
@@ -31,52 +31,57 @@ spark = SparkSession.builder.appName("Audit Report").getOrCreate()
 # 📂 Carregar dados processados
 df = spark.read.parquet(data_path)
 
-auditoria = {
-    "execution_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    "etl_version": "1.0.0",
-    "source": config.get("environment", "unknown"),
-    "total_records": df.count()
-}
+total_records = df.count()
 
 # 🛑 **Filtrar registros inválidos**
-invalid_records = df.filter(col("amt").isNull() | col("is_fraud").isNull())
-auditoria["invalid_records"] = invalid_records.count()
+invalid_records = df.filter(col("amt").isNull() | col("is_fraud").isNull()).count()
 
 # ⚠️ **Detectar outliers em `amt`**
 amt_stats = df.select(mean("amt").alias("mean_amt"), stddev("amt").alias("std_amt")).collect()[0]
 mean_amt, std_amt = amt_stats["mean_amt"], amt_stats["std_amt"]
-outliers = df.filter((col("amt") > mean_amt + 3 * std_amt) | (col("amt") < mean_amt - 3 * std_amt))
-auditoria["outliers_detected"] = {
-    "total": outliers.count(),
-    "percentage": round((outliers.count() / df.count()) * 100, 2)
-}
+outliers = df.filter((col("amt") > mean_amt + 3 * std_amt) | (col("amt") < mean_amt - 3 * std_amt)).count()
 
 # 🚨 **Detectar possíveis fraudes**
-high_value_frauds = df.filter(col("amt") > 10000)
+high_value_frauds = df.filter(col("amt") > 10000).count()
 window_spec = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
 df = df.withColumn("time_diff", unix_timestamp(col("trans_date_trans_time")) - lag(unix_timestamp(col("trans_date_trans_time"))).over(window_spec))
-fast_transactions = df.filter(col("time_diff") < 10)
-auditoria["fraud_analysis"] = {
-    "high_value_frauds": high_value_frauds.count(),
-    "fast_transactions": fast_transactions.count(),
-    "total_fraud_cases": df.filter(col("is_fraud") == 1).count(),
-    "fraud_by_category": df.filter(col("is_fraud") == 1)
-        .groupBy("category").count().orderBy(col("count").desc())
-        .toPandas().set_index("category")["count"].to_dict()
-}
+fast_transactions = df.filter(col("time_diff") < 10).count()
+total_fraud_cases = df.filter(col("is_fraud") == 1).count()
+fraud_by_category = df.filter(col("is_fraud") == 1)
+    .groupBy("category").count().orderBy(col("count").desc())
+    .toPandas().set_index("category")["count"].to_dict()
 
 # 📊 **Resumo financeiro**
-auditoria["transaction_amounts"] = {
-    "total_transaction_amount": df.select(spark_sum("amt")).collect()[0][0],
-    "total_fraud_amount": df.filter(col("is_fraud") == 1).select(spark_sum("amt")).collect()[0][0],
-    "average_fraud_value": df.filter(col("is_fraud") == 1).select(mean("amt")).collect()[0][0],
-    "average_transaction_value": df.select(mean("amt")).collect()[0][0]
-}
+total_transaction_amount = df.select(spark_sum("amt")).collect()[0][0]
+total_fraud_amount = df.filter(col("is_fraud") == 1).select(spark_sum("amt")).collect()[0][0]
+average_fraud_value = df.filter(col("is_fraud") == 1).select(mean("amt")).collect()[0][0]
+average_transaction_value = df.select(mean("amt")).collect()[0][0]
 
 # 📂 **Criar diretório de auditoria se não existir**
 os.makedirs(AUDIT_PATH, exist_ok=True)
 
 # 📂 **Salvar relatório consolidado em JSON**
+auditoria = {
+    "execution_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    "etl_version": "1.0.0",
+    "source": config.get("environment", "unknown"),
+    "total_records": total_records,
+    "invalid_records": invalid_records,
+    "outliers_detected": {"total": outliers, "percentage": round((outliers / total_records) * 100, 2)},
+    "fraud_analysis": {
+        "high_value_frauds": high_value_frauds,
+        "fast_transactions": fast_transactions,
+        "total_fraud_cases": total_fraud_cases,
+        "fraud_by_category": fraud_by_category
+    },
+    "transaction_amounts": {
+        "total_transaction_amount": total_transaction_amount,
+        "total_fraud_amount": total_fraud_amount,
+        "average_fraud_value": average_fraud_value,
+        "average_transaction_value": average_transaction_value
+    }
+}
+
 audit_json_path = os.path.join(AUDIT_PATH, "audit_summary.json")
 with open(audit_json_path, "w", encoding="utf-8") as f:
     json.dump(auditoria, f, indent=4)
@@ -103,21 +108,6 @@ plt.grid()
 plt.savefig(os.path.join(AUDIT_PATH, "fraud_by_month_2023.png"))
 plt.close()
 print(f"📊 Evolução das fraudes por mês salva como gráfico.")
-
-# 📊 **Gerar gráfico de fraudes por categoria**
-fraud_by_category_df = df.filter(col("is_fraud") == 1).groupBy("category").count().toPandas()
-fraud_by_category_df.rename(columns={"count": "total_frauds"}, inplace=True)
-fraud_by_category_df.sort_values(by="total_frauds", ascending=False, inplace=True)
-
-plt.figure(figsize=(12, 6))
-plt.barh(fraud_by_category_df["category"], fraud_by_category_df["total_frauds"], color="blue")
-plt.xlabel("Total de Fraudes")
-plt.ylabel("Categoria")
-plt.title("Fraudes por Categoria")
-plt.grid()
-plt.savefig(os.path.join(AUDIT_PATH, "fraud_by_category.png"))
-plt.close()
-print(f"📊 Fraudes por categoria salva como gráfico.")
 
 # 🚀 Relatório finalizado
 print("\n✅ Relatório de auditoria concluído com sucesso!")
