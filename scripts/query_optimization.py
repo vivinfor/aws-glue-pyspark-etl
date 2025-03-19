@@ -10,7 +10,7 @@ spark = SparkSession.builder \
     .getOrCreate()
 
 # 📂 Caminho do diretório processado
-data_path = "data/processed"
+data_path = "data/optimized"
 
 # 📌 Verificar se os dados processados existem
 if not os.path.exists(data_path):
