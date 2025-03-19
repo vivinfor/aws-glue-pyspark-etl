@@ -20,7 +20,11 @@ benchmark_path = "data/benchmark"
 os.makedirs(benchmark_path, exist_ok=True)
 
 # 🚀 Criar sessão Spark
-spark = SparkSession.builder.appName("Benchmark Storage Formats").getOrCreate()
+spark = SparkSession.builder \
+    .appName("Benchmark Storage Formats") \
+    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
+    .getOrCreate()
 
 # 📂 Carregar dados processados
 df = spark.read.parquet(data_path)

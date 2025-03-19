@@ -8,3 +8,4 @@ jupyter
 pyarrow
 matplotlib
 seaborn
+delta-spark
