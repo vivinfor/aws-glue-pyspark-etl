@@ -14,7 +14,9 @@ Além das etapas tradicionais de ETL, este projeto se destaca por:
 
 ## 👉 **Origem e Estrutura dos Dados**
 
-Este projeto foi desenvolvido para processar e otimizar **transações financeiras fictícias**, aplicando regras de validação e detecção de fraudes para garantir a qualidade dos dados antes da análise.
+Este projeto foi desenvolvido para processar e otimizar **transações financeiras**, aplicando regras de validação e detecção de fraudes para garantir a qualidade dos dados antes da análise.
+
+A arquitetura foi projetada para ser escalável e adaptável, permitindo sua aplicação em cenários reais apenas com ajustes no schema e nas regras do ETL.
 
 ### 📚 **Estrutura dos Dados**
 
