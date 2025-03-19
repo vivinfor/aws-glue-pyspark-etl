@@ -4,7 +4,7 @@ import yaml
 import logging
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, when, date_format, unix_timestamp, lag, concat, lit, to_timestamp
+    col, when, date_format, unix_timestamp, lag, concat, lit, to_timestamp, count, mean, stddev
 )
 from pyspark.sql.window import Window
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType, TimestampType
@@ -14,14 +14,22 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # 📂 Carregar Configuração do YAML e Schema
-config_path = os.path.abspath("config/config.yaml")
-schema_path = os.path.abspath("config/schema.json")
+CONFIG_PATH = "config/config.yaml"
+SCHEMA_PATH = "config/schema.json"
+VALIDATION_RULES_PATH = "config/validation_rules.yaml"
 
-with open(config_path, "r") as f:
+for path in [CONFIG_PATH, SCHEMA_PATH, VALIDATION_RULES_PATH]:
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"❌ Arquivo '{path}' não encontrado!")
+
+with open(CONFIG_PATH, "r") as f:
     config = yaml.safe_load(f)
 
-with open(schema_path, "r") as f:
+with open(SCHEMA_PATH, "r") as f:
     schema_json = json.load(f)
+
+with open(VALIDATION_RULES_PATH, "r") as f:
+    validation_rules = yaml.safe_load(f)
 
 # ✅ **Converter JSON para Schema PySpark**
 def json_to_spark_schema(json_schema):
@@ -91,38 +99,22 @@ df = df.withColumn(
     .otherwise(lit("Erro - Data Inválida"))
 )
 
-# 🔹 **Criar `possible_fraud_high_value`**
-df = df.withColumn("possible_fraud_high_value", (col("amt") > 10000).cast("integer"))
+# ✅ **Aplicar regras de validação configuráveis**
+for col_name in validation_rules["validation"]["missing_values"]["critical"]:
+    df = df.dropna(subset=[col_name])
 
-# 📊 **Criar janela para detecção de transações rápidas**
-window_spec_time = Window.partitionBy("cc_num", "merchant").orderBy("trans_date_trans_time")
-df = df.withColumn("time_diff", unix_timestamp("trans_date_trans_time") - lag(unix_timestamp("trans_date_trans_time")).over(window_spec_time))
-df = df.fillna({"time_diff": 0})  # Substituir NaN por 0
+fill_values = validation_rules["validation"]["missing_values"]["non_critical"]
+df = df.fillna(fill_values)
+logger.info("✅ Valores nulos tratados conforme regras configuráveis.")
 
-df = df.withColumn("possible_fraud_fast_transactions", when(col("time_diff") < 10, 1).otherwise(0))
+# ✅ **Detectar outliers em `amt`**
+if validation_rules["validation"]["outlier_detection"]["amt"]["method"] == "zscore":
+    threshold = validation_rules["validation"]["outlier_detection"]["amt"]["threshold"]
+    amt_stats = df.select(mean("amt").alias("mean_amt"), stddev("amt").alias("std_amt")).collect()[0]
+    mean_amt, std_amt = amt_stats["mean_amt"], amt_stats["std_amt"]
+    df = df.filter((col("amt") <= mean_amt + threshold * std_amt) & (col("amt") >= mean_amt - threshold * std_amt))
 
-# 📌 **Debug: Mostrar esquema e estatísticas antes de salvar**
-logger.info("🔍 Estrutura final do DataFrame:")
-df.printSchema()
-
-# 🔍 **Confirmar que todas as colunas do esquema esperado foram criadas**
-expected_columns = {field["name"] for field in schema_json["fields"]}
-actual_columns = set(df.columns)
-missing_columns = expected_columns - actual_columns
-
-if missing_columns:
-    logger.warning(f"⚠️ As seguintes colunas não foram geradas: {missing_columns}")
-
-# 🔍 **Confirmar distribuição de `transaction_period`**
-logger.info("🔍 Verificando distribuição de `transaction_period`:")
-df.select("transaction_period").groupby("transaction_period").count().show()
-
-# 🔍 **Verificar se `day_of_week` realmente existe antes de exibi-la**
-if "day_of_week" in df.columns:
-    logger.info("🔍 Exemplo de registros para validação:")
-    df.select("day_of_week", "hour_of_day", "transaction_period", "possible_fraud_high_value", "possible_fraud_fast_transactions").show(10)
-else:
-    logger.warning("⚠️ `day_of_week` não foi criada corretamente e não será exibida.")
+logger.info("✅ Outliers removidos conforme regras configuráveis.")
 
 # 📂 **Salvar dados processados**
 logger.info("📂 Salvando dados processados...")
