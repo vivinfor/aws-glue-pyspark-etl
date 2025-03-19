@@ -3,6 +3,7 @@ import json
 import yaml
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from datetime import datetime
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
@@ -93,27 +94,30 @@ with open(audit_json_path, "w", encoding="utf-8") as f:
     json.dump(auditoria, f, indent=4)
 print(f"📂 Relatório de auditoria salvo: {audit_json_path}")
 
-# 📊 **Gerar gráfico de fraudes por mês**
-df_2023 = df.filter(year(col("trans_date_trans_time")) == 2023)
-fraud_by_month_2023 = (
-    df_2023.filter(col("is_fraud") == 1)
-    .groupBy(month(col("trans_date_trans_time")).alias("month"))
-    .count()
-    .orderBy("month")
-)
-fraud_by_month_df = fraud_by_month_2023.toPandas()
-fraud_by_month_df.rename(columns={"count": "total_frauds"}, inplace=True)
+# 📊 **Criar visualização estratégica agrupada**
+fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
-plt.figure(figsize=(10, 5))
-plt.bar(fraud_by_month_df["month"], fraud_by_month_df["total_frauds"], color="red")
-plt.xlabel("Mês")
-plt.ylabel("Total de Fraudes")
-plt.title("Evolução das Fraudes por Mês - 2023")
-plt.xticks(range(1, 13))
-plt.grid()
-plt.savefig(os.path.join(AUDIT_PATH, "fraud_by_month_2023.png"))
+# 📌 Proporção de fraudes no total transacionado (Pie Chart)
+labels = ["Transações Normais", "Transações Fraudulentas"]
+values = [total_transaction_amount - total_fraud_amount, total_fraud_amount]
+axes[0].pie(values, labels=labels, autopct='%1.1f%%', colors=["lightblue", "red"])
+axes[0].set_title("Proporção de Fraudes no Total Transacionado")
+
+# 📌 Distribuição de Fraudes por Categoria (Heatmap)
+fraud_df = pd.DataFrame(list(fraud_by_category.items()), columns=["Categoria", "Total de Fraudes"])
+sns.heatmap(fraud_df.set_index("Categoria"), annot=True, fmt="d", cmap="coolwarm", ax=axes[1])
+axes[1].set_title("Distribuição de Fraudes por Categoria")
+
+# 📌 Dispersão de Valores Transacionados (Boxplot)
+df_pandas = df.toPandas()
+sns.boxplot(x=df_pandas["is_fraud"], y=df_pandas["amt"], ax=axes[2])
+axes[2].set_xticklabels(["Transações Normais", "Fraudes"])
+axes[2].set_title("Dispersão de Valores de Transações")
+
+plt.tight_layout()
+plt.savefig(os.path.join(AUDIT_PATH, "audit_summary_visualization.png"))
 plt.close()
-print(f"📊 Evolução das fraudes por mês salva como gráfico.")
+print(f"📊 Visualização estratégica salva como imagem.")
 
 # 🚀 Relatório finalizado
 print("\n✅ Relatório de auditoria concluído com sucesso!")
