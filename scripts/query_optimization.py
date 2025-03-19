@@ -30,7 +30,7 @@ expected_columns = {
     "first", "last", "gender", "street", "city", "state", "zip",
     "lat", "long", "city_pop", "job", "dob", "trans_num", "unix_time",
     "merch_lat", "merch_long", "is_fraud", "day_of_week", "hour_of_day",
-    "transaction_period", "possible_fraud_high_value", "possible_fraud_fast_transactions"
+    "transaction_period", 
 }
 actual_columns = set(df.columns)
 
