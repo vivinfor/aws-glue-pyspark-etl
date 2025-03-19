@@ -115,6 +115,7 @@ aws-glue-pyspark-etl/
 ---
 
 ## 🔄 **Próximos Passos**
+✅ **Implementação da API**  para expor métricas calculadas, garantindo acesso rápido e estruturado aos dados.
 ✅ **Monitoramento da API** para acompanhar tempo de resposta e acessos.  
 ✅ **Criação de uma camada de cache (Redis) para reduzir consultas repetitivas.**  
 ✅ **Aprimorar detecção de anomalias com aprendizado de máquina.**  
