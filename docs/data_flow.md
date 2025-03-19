@@ -30,17 +30,26 @@ Os dados processados são expostos através da **API FastAPI**, permitindo acess
 
 ## Diagrama do Fluxo de Dados
 ```mermaid
-sequenceDiagram
-    participant S3 as Armazém de Dados (S3)
-    participant API as API Externa
-    participant Glue as AWS Glue (PySpark)
-    participant Storage as Banco de Dados (PostgreSQL)
-    participant FastAPI as API de Consulta
-    participant BI as Dashboard (Power BI)
-
-    API->>Glue: Extração de Dados de API
-    S3->>Glue: Extração de Dados do S3
-    Glue->>Glue: Transformação e Limpeza
-    Glue->>Storage: Armazenamento Processado
-    FastAPI->>Storage: Consulta de Dados
-    BI->>FastAPI: Visualização via API
+---
+config:
+  layout: fixed
+---
+flowchart TD
+    A1["APIs Externas"] -- Extração de Dados --> B["AWS Glue PySpark"]
+    A2["Bancos de Dados"] -- Extração de Dados --> B
+    A3["Arquivos CSV JSON S3"] -- Extração de Dados --> B
+    A4["Kafka"] -- Stream de Dados --> B
+    B -- Validação de Dados --> V1["Regras de Validação e Qualidade"]
+    V1 -- Remoção de Duplicatas --> B
+    V1 -- Detecção de Fraudes --> B
+    B -- Limpeza e Padronização --> C["Dados Transformados (Parquet)"]
+    B -- Cálculo de Métricas --> D["Dados Agregados"]
+    B -- Identificação de Outliers --> O["Análise de Outliers"]
+    C -- Armazenamento --> E["S3 Data Lake"]
+    D -- Carga Final --> F["PostgreSQL Data Warehouse"]
+    O -- Armazenamento --> G["Delta Lake para Histórico"]
+    F -- Consulta de Dados --> G1["API de Consulta (FastAPI)"]
+    G1 -- Exibição --> H["Dashboard Power BI"]
+    G1 -- Integração --> H2["Outras Ferramentas (Tableau, Looker)"]
+    G1 -- Registro de Logs --> M["Monitoramento e Auditoria"]
+    G1 -- Controle de Acesso --> S["Autenticação e Segurança (JWT, OAuth)"]
