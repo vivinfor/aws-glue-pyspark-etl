@@ -1,133 +1,128 @@
-# **AWS Glue, PySpark & FastAPI ETL**
+# Fraud Detection ETL Pipeline
 
-## 📌 **Objetivo**
-Este projeto implementa um **pipeline de ETL escalável** combinando **AWS Glue, PySpark e FastAPI** para processamento, transformação e disponibilização de dados transacionais.
+Pipeline de ETL em PySpark para processamento de transações financeiras com identificação de padrões de fraude, expondo os dados processados via API REST.
 
-Além das etapas tradicionais de ETL, este projeto se destaca por:
-✅ **Otimização de consultas SQL e PySpark** para melhor performance.  
-✅ **Uso de uma abordagem híbrida** → **Banco de dados para métricas calculadas** e **Parquet para armazenar dados brutos e históricos**.  
-✅ **Exposição de dados via FastAPI**, centralizando cálculos no backend para evitar inconsistências.  
-✅ **Criação de um dataset otimizado para Power BI** e análise de fraudes financeiras.  
-✅ **Execução do ETL validada tanto no VS Code (Spark Standalone) quanto no Jupyter.**  
+Desenvolvido para execução local e deployment no **Google Cloud Platform (GCP)**, usando **Cloud Storage** para armazenamento e **Cloud Run** para servir a API.
 
----
+## Arquitetura
 
-## 👉 **Origem e Estrutura dos Dados**
+```
+CSV (transações brutas)
+  → ETL PySpark        (limpeza, enriquecimento, validação)
+  → Parquet            (particionado por categoria)
+  → FastAPI            (endpoints de consulta sobre os dados processados)
+```
 
-Este projeto foi desenvolvido para processar e otimizar **transações financeiras**, aplicando regras de validação e detecção de fraudes para garantir a qualidade dos dados antes da análise.
+**Armazenamento no GCP:** os arquivos Parquet são salvos no **Google Cloud Storage (GCS)**. Localmente, ficam em `data/optimized/`.
 
-A arquitetura foi projetada para ser escalável e adaptável, permitindo sua aplicação em cenários reais apenas com ajustes no schema e nas regras do ETL.
+## Tecnologias
 
-### 📚 **Estrutura dos Dados**
+| Camada | Local | GCP |
+|--------|-------|-----|
+| Processamento | PySpark (standalone) | Dataproc |
+| Armazenamento | `data/optimized/` (Parquet) | Cloud Storage (GCS) |
+| API | FastAPI + Uvicorn | Cloud Run |
+| Análise exploratória | Jupyter Notebook | — |
 
-Os dados são estruturados para incluir:
+## Estrutura do projeto
 
-✅ **Detalhes da transação** → Data, valor (`amt`), comerciante (`merchant`), categoria (`category`).  
-✅ **Informações do cliente** → Localização, profissão, identificador único.  
-✅ **Sinalização de fraudes** → Identificação de padrões suspeitos para análise posterior.  
+```
+fraud-etl/
+├── pipeline/                  # Módulos ETL (em desenvolvimento)
+│   ├── utils.py               # Funções compartilhadas (config, Spark session, validações)
+│   ├── extract.py             # Leitura do CSV
+│   ├── transform.py           # Enriquecimento e validação
+│   └── load.py                # Salvamento em Parquet (local ou GCS)
+├── api/                       # FastAPI (em desenvolvimento)
+│   ├── main.py
+│   └── routes/
+│       └── transactions.py
+├── tests/                     # Testes unitários (em desenvolvimento)
+│   ├── fixtures/
+│   │   └── sample.csv         # Amostra do dataset para testes
+│   └── test_transform.py
+├── scripts/                   # Scripts originais (base para o refactor)
+│   ├── etl_pipeline.py
+│   ├── data_validation.py
+│   └── save_optimized_data.py
+├── config/
+│   ├── schema.json            # Schema das colunas e tipos esperados
+│   ├── validation_rules.yaml  # Regras de validação (nulos, outliers, fraudes)
+│   └── config.yaml            # Caminhos e configurações gerais
+├── notebooks/
+│   └── 01_data_exploration.ipynb
+├── run_pipeline.py            # Entry point único (em desenvolvimento)
+├── Dockerfile
+└── requirements.txt
+```
 
-### 👀 **Foco do Projeto**
+## Estado atual
 
-Este projeto não se trata apenas de carregar um conjunto de dados, mas sim de **demonstrar boas práticas de ETL, otimização de dados e criação de insights estruturados para análise de fraudes**.
+| Componente | Estado |
+|-----------|--------|
+| ETL (extract, transform, load) | Implementado nos `scripts/` |
+| Configuração externalizada | Implementado |
+| Análise exploratória (notebook) | Implementado |
+| Refactor para `pipeline/` com utils compartilhado | Em desenvolvimento |
+| API FastAPI | Em desenvolvimento |
+| Testes unitários | Em desenvolvimento |
 
-💡 **Importante:** O pipeline foi projetado para garantir **coerência e integridade** nas informações processadas, aplicando validações antes da carga e garantindo que os dados analisados sejam consistentes com as regras de negócio definidas.
+## O que o ETL faz
 
----
+**Extração:** lê CSV de transações financeiras com separador `|`.
 
-## 🔹 **Tecnologias Utilizadas**
-💾 **Processamento e Transformação**  
-✅ **AWS Glue & PySpark** → Para manipulação de grandes volumes de dados.  
-✅ **SQL (AWS Athena)** → Para consultas eficientes e validação de dados.  
-✅ **Kafka (Futuro)** → Para ingestão de dados em tempo real.
+**Transformação:**
+- combina colunas de data e hora em `trans_date_trans_time`
+- cria `hour_of_day`, `day_of_week` e `transaction_period` (Madrugada / Manhã / Tarde / Noite)
+- remove registros com nulos em colunas críticas (`cc_num`, `amt`, `is_fraud`)
+- preenche nulos em colunas não críticas com valores padrão configuráveis
+- remove outliers em `amt` por z-score com threshold configurável
 
-📊 **Análise e Visualização**  
-✅ **Jupyter Notebook** → Para análise exploratória e experimentação com consultas otimizadas.  
-✅ **Power BI** → Para construção de **dashboards interativos** sobre fraudes.  
-✅ **FastAPI** → Exposição dos cálculos como API para garantir consistência.  
+**Carga:** salva em Parquet particionado por `category` (local ou GCS via `gs://`).
 
-🚀 **Armazenamento e Integração**  
-✅ **AWS S3 + Parquet** → Para armazenamento eficiente dos dados brutos e históricos.  
-✅ **PostgreSQL** → Para armazenamento de métricas pré-calculadas e acesso rápido na API.  
-✅ **Delta Lake** → Suporte a atualizações incrementais.  
-✅ **MySQL / Redshift / Snowflake (Futuro)** → Suporte a múltiplas fontes de dados relacionais.
-
----
-
-## 🚀 **Arquitetura Híbrida (Parquet + Banco de Dados + API)**
-
-Este projeto adota uma **abordagem híbrida**, combinando **Parquet, banco de dados e API** para maximizar desempenho e escalabilidade:
-
-1️⃣ **Parquet (AWS S3 / Local)** → Armazena **dados brutos e históricos** otimizados para leitura no Power BI.  
-2️⃣ **PostgreSQL** → Centraliza **métricas calculadas**, garantindo performance para análises frequentes.  
-3️⃣ **FastAPI** → Expõe **dados pré-processados** para evitar cálculos repetitivos no Power BI.  
-
-### **📌 Vantagens da Arquitetura**
-✅ **Centralização dos cálculos no Python** evita inconsistências entre usuários.  
-✅ **Banco de Dados para métricas** → Respostas rápidas via API, reduzindo processamento no Power BI.  
-✅ **Parquet para histórico** → Mantém dados brutos disponíveis para consultas avançadas.  
-✅ **API padronizada** → Integrações consistentes entre aplicações e análises de negócio.  
-
----
-
-## 🚀 **Endpoints da API FastAPI**
-A API expõe métricas **pré-calculadas**, reduzindo a carga computacional no Power BI e padronizando cálculos.  
+## API (endpoints planejados)
 
 | Método | Endpoint | Descrição |
-|--------|---------|------------|
-| **GET** | `/transactions/summary` | Retorna total de transações, fraudes e média de valores. |
-| **GET** | `/fraud/monthly` | Retorna o total de fraudes por mês. |
-| **GET** | `/fraud/category` | Retorna fraudes agregadas por categoria de transação. |
-| **GET** | `/fraud/high_value` | Lista transações suspeitas acima de $10.000. |
-| **GET** | `/anomalies/outliers` | Identifica transações com valores fora do padrão. |
+|--------|----------|-----------|
+| GET | `/summary` | Total de transações, fraudes e média de valor |
+| GET | `/fraud/by-category` | Fraudes agrupadas por categoria |
+| GET | `/fraud/by-period` | Fraudes por período do dia |
 
-**Exemplo de Uso:**
-```sh
-curl -X GET "http://localhost:8000/transactions/summary"
+## Como executar
+
+### Pré-requisitos
+
+```bash
+pip install -r requirements.txt
 ```
 
----
+### Executar o pipeline localmente
 
-## 📊 **Formato do Arquivo Final para Power BI**
-| Formato | Motivo |
-|---------|--------|
-| **Parquet** | 🚀 Compactação melhor e leitura rápida no Power BI. |
-| **PostgreSQL** | 🔄 Permite armazenamento de métricas calculadas para acesso via API. |
-| **CSV** | ❌ Não utilizado, pois ocupa mais espaço e tem leitura lenta. |
-
-📌 **Decisão final:**  
-- **API FastAPI + PostgreSQL** para métricas acessadas com frequência.  
-- **Parquet para armazenamento de dados históricos e carregamento no Power BI.**  
-
----
-
-## 👉 Estrutura do Projeto
-
-```md
-aws-glue-pyspark-etl/
-├── data/                  # Dados brutos e processados
-├── notebooks/             # Jupyter Notebook para análise exploratória
-│   ├── 01_data_exploration.ipynb  # Análise exploratória, otimização e insights
-├── scripts/               # Código ETL em Python (VS Code)
-├── api/                   # Implementação da API FastAPI
-├── power_bi/              # Dashboard Power BI
-├── config/                
-│   ├── schema.json        # Definição do schema dos dados
-│   ├── config.yaml      # Configurações gerais
-└── README.md              # Documentação do projeto
+```bash
+# Enquanto o refactor não está concluído, executar na sequência:
+python scripts/etl_pipeline.py
+python scripts/save_optimized_data.py
 ```
 
+Os dados processados são salvos em `data/optimized/` particionados por `category`.
+
+### Executar no GCP
+
+Para apontar para o Cloud Storage, basta alterar `optimized_data_path` no `config/config.yaml`:
+
+```yaml
+environment: gcp
+optimized_data_path: "gs://seu-bucket/optimized/"
+```
+
+A API pode ser deployada no Cloud Run com o `Dockerfile` existente.
+
+## Dataset
+
+O pipeline foi desenvolvido com um dataset de transações financeiras contendo sinalizações de fraude. Pode ser adaptado para outros datasets ajustando `config/schema.json` e `config/validation_rules.yaml`.
+
+Campos principais: `cc_num`, `amt`, `merchant`, `category`, `is_fraud`, `trans_date_trans_time`, coordenadas geográficas e dados do titular do cartão.
+
 ---
 
-## 🔄 **Próximos Passos**
-✅ **Suporte a múltiplas fontes de dados** (S3, Bancos SQL, Kafka, etc.).  
-✅ **Automação e agendamento do ETL** via Apache Airflow.  
-✅ **Implementação da API** para expor métricas calculadas.  
-✅ **Monitoramento da API** para acompanhar tempo de resposta e acessos.  
-✅ **Criação de uma camada de cache (Redis) para reduzir consultas repetitivas.**  
-✅ **Aprimorar detecção de anomalias com aprendizado de máquina.**  
-✅ **Testar escalabilidade com maior volume de dados.**  
-✅ **Criar documentação completa para consumo da API.**  
-
----
-
-📌 **Desenvolvido por** [Viviana](https://github.com/vivinfor) 🚀
+Desenvolvido por [Viviana](https://github.com/vivinfor)
