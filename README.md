@@ -4,6 +4,18 @@ Pipeline de ETL em PySpark para processamento de transações financeiras com id
 
 Desenvolvido para execução local e deployment no **Google Cloud Platform (GCP)**, usando **Cloud Storage** para armazenamento e **Cloud Run** para servir a API.
 
+## Contexto de uso
+
+Este pipeline resolve a etapa de **transformação e disponibilização**, não de ingestão. O ponto de partida é um CSV já disponível, entregue por qualquer processo de ingestão existente na empresa (Airbyte, Fivetran, export de ERP, job próprio).
+
+O que o pipeline agrega a partir daí:
+
+- **Qualidade dos dados:** regras de validação, nulos e outliers configuráveis via YAML, sem necessidade de alterar código
+- **Dado estruturado:** saída em Parquet particionado, pronto para consumo por ferramentas de analytics
+- **Cálculo centralizado:** a API garante que métricas de fraude são calculadas uma única vez e de forma consistente para todos os consumidores
+
+Casos de uso típicos: fintechs e bancos com export diário do core bancário, operadoras de cartão com dados de antifraude de terceiros, e-commerces que recebem relatórios de transações e precisam de uma camada de qualidade antes de cruzar com dados internos.
+
 ## Arquitetura
 
 ```
@@ -22,7 +34,6 @@ CSV (transações brutas)
 | Processamento | PySpark (standalone) | Dataproc |
 | Armazenamento | `data/optimized/` (Parquet) | Cloud Storage (GCS) |
 | API | FastAPI + Uvicorn | Cloud Run |
-| Análise exploratória | Jupyter Notebook | — |
 
 ## Estrutura do projeto
 
@@ -49,8 +60,6 @@ fraud-etl/
 │   ├── schema.json            # Schema das colunas e tipos esperados
 │   ├── validation_rules.yaml  # Regras de validação (nulos, outliers, fraudes)
 │   └── config.yaml            # Caminhos e configurações gerais
-├── notebooks/
-│   └── 01_data_exploration.ipynb
 ├── run_pipeline.py            # Entry point único (em desenvolvimento)
 ├── Dockerfile
 └── requirements.txt
@@ -62,7 +71,6 @@ fraud-etl/
 |-----------|--------|
 | ETL (extract, transform, load) | Implementado nos `scripts/` |
 | Configuração externalizada | Implementado |
-| Análise exploratória (notebook) | Implementado |
 | Refactor para `pipeline/` com utils compartilhado | Em desenvolvimento |
 | API FastAPI | Em desenvolvimento |
 | Testes unitários | Em desenvolvimento |

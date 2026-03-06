@@ -3,7 +3,4 @@ pandas
 fastapi
 uvicorn
 pyyaml
-jupyter
 pyarrow
-matplotlib
-seaborn
