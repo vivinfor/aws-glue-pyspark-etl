@@ -104,13 +104,27 @@ fraud-etl/
 pip install -r requirements.txt
 ```
 
-### Executar o pipeline localmente
+### Executar o pipeline e a API localmente
+
+A API depende dos dados gerados pelo pipeline. A ordem de execução é:
 
 ```bash
-# Enquanto o refactor não está concluído, executar na sequência:
-python scripts/etl_pipeline.py
-python scripts/save_optimized_data.py
+# 1. Colocar o CSV de entrada em data/raw/
+# 2. Executar o pipeline para gerar os dados processados
+python run_pipeline.py
+
+# 3. Subir a API (lê de data/optimized/ gerado no passo anterior)
+uvicorn api.main:app --reload
 ```
+
+Com Docker (após ter os dados em `data/raw/`):
+
+```bash
+make up-build       # sobe a API
+make pipeline       # executa o ETL dentro do container
+```
+
+> Se a API subir sem dados disponíveis, ela inicia normalmente mas retorna `503` nos endpoints até que o pipeline seja executado.
 
 Os dados processados são salvos em `data/optimized/` particionados por `category`.
 

@@ -1,7 +1,18 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 router = APIRouter()
+
+
+def _get_df(request: Request):
+    """Retorna o DataFrame carregado ou levanta 503 se o pipeline ainda não foi executado."""
+    df = _get_df(request)
+    if df is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Data not available. Run the pipeline first: python run_pipeline.py",
+        )
+    return df
 
 
 class TransactionSummary(BaseModel):
@@ -27,7 +38,7 @@ class FraudByPeriod(BaseModel):
 @router.get("/summary", response_model=TransactionSummary)
 def get_summary(request: Request):
     """Retorna totais gerais de transações e métricas de fraude."""
-    df = request.app.state.df
+    df = _get_df(request)
     total = len(df)
     total_fraud = int((df["is_fraud"] == 1).sum())
     return TransactionSummary(
@@ -42,7 +53,7 @@ def get_summary(request: Request):
 @router.get("/fraud/by-category", response_model=list[FraudByCategory])
 def get_fraud_by_category(request: Request):
     """Retorna contagem e taxa de fraude agrupadas por categoria de transação."""
-    df = request.app.state.df
+    df = _get_df(request)
     result = []
     for category, group in df.groupby("category"):
         total_in_cat = len(group)
@@ -58,7 +69,7 @@ def get_fraud_by_category(request: Request):
 @router.get("/fraud/by-period", response_model=list[FraudByPeriod])
 def get_fraud_by_period(request: Request):
     """Retorna contagem e taxa de fraude agrupadas por período do dia."""
-    df = request.app.state.df
+    df = _get_df(request)
     result = []
     for period, group in df.groupby("transaction_period"):
         total_in_period = len(group)
