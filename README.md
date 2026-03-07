@@ -60,7 +60,7 @@ fraud-etl/
 │   ├── schema.json            # Schema das colunas e tipos esperados
 │   ├── validation_rules.yaml  # Regras de validação (nulos, outliers, fraudes)
 │   └── config.yaml            # Caminhos e configurações gerais
-├── run_pipeline.py            # Entry point único (em desenvolvimento)
+├── run_pipeline.py            # Entry point único do ETL
 ├── Dockerfile
 └── requirements.txt
 ```
@@ -69,11 +69,11 @@ fraud-etl/
 
 | Componente | Estado |
 |-----------|--------|
-| ETL (extract, transform, load) | Implementado nos `scripts/` |
+| ETL (`pipeline/` com utils compartilhado) | Implementado |
 | Configuração externalizada | Implementado |
-| Refactor para `pipeline/` com utils compartilhado | Em desenvolvimento |
-| API FastAPI | Em desenvolvimento |
-| Testes unitários | Em desenvolvimento |
+| Testes unitários (`tests/`) | Implementado |
+| API FastAPI (`api/`) | Implementado |
+| Scripts originais (`scripts/`) | Mantidos como referência |
 
 ## O que o ETL faz
 

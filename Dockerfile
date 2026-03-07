@@ -1,16 +1,11 @@
-# Base image
-FROM python:3.8-slim
+FROM python:3.11-slim
 
-# Definir diretório de trabalho
 WORKDIR /app
+ENV PYTHONPATH=/app
 
-# Copiar arquivos necessários
-COPY requirements.txt ./
-COPY scripts/ ./scripts/
-COPY data/ ./data/
-
-# Instalar dependências
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Rodar o ETL
-CMD ["python", "scripts/etl_local.py"]
+COPY . .
+
+CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers"]
