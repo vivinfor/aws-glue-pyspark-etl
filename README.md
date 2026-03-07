@@ -39,41 +39,34 @@ CSV (transações brutas)
 
 ```
 fraud-etl/
-├── pipeline/                  # Módulos ETL (em desenvolvimento)
+├── pipeline/                  # Módulos ETL
 │   ├── utils.py               # Funções compartilhadas (config, Spark session, validações)
 │   ├── extract.py             # Leitura do CSV
 │   ├── transform.py           # Enriquecimento e validação
 │   └── load.py                # Salvamento em Parquet (local ou GCS)
-├── api/                       # FastAPI (em desenvolvimento)
-│   ├── main.py
+├── api/                       # FastAPI
+│   ├── main.py                # Configuração da app e carregamento dos dados
 │   └── routes/
-│       └── transactions.py
-├── tests/                     # Testes unitários (em desenvolvimento)
-│   ├── fixtures/
-│   │   └── sample.csv         # Amostra do dataset para testes
-│   └── test_transform.py
-├── scripts/                   # Scripts originais (base para o refactor)
-│   ├── etl_pipeline.py
-│   ├── data_validation.py
-│   └── save_optimized_data.py
+│       └── transactions.py    # Endpoints de fraude
+├── tests/                     # Testes unitários
+│   ├── conftest.py            # Fixture de SparkSession compartilhada
+│   └── test_transform.py      # Testes de transformação e validação
 ├── config/
 │   ├── schema.json            # Schema das colunas e tipos esperados
 │   ├── validation_rules.yaml  # Regras de validação (nulos, outliers, fraudes)
 │   └── config.yaml            # Caminhos e configurações gerais
+├── data/
+│   ├── raw/                   # CSV de entrada (não versionado)
+│   └── optimized/             # Parquet gerado pelo pipeline (não versionado)
+├── env/dev/env.yaml           # Variáveis de ambiente para desenvolvimento
 ├── run_pipeline.py            # Entry point único do ETL
-├── Dockerfile
+├── Dockerfile                 # Imagem de produção
+├── Dockerfile.dev             # Imagem de desenvolvimento (com hot-reload)
+├── docker-compose.yml         # Configuração base
+├── docker-compose.override.yml # Override automático para dev
+├── Makefile                   # Comandos simplificados
 └── requirements.txt
 ```
-
-## Estado atual
-
-| Componente | Estado |
-|-----------|--------|
-| ETL (`pipeline/` com utils compartilhado) | Implementado |
-| Configuração externalizada | Implementado |
-| Testes unitários (`tests/`) | Implementado |
-| API FastAPI (`api/`) | Implementado |
-| Scripts originais (`scripts/`) | Mantidos como referência |
 
 ## O que o ETL faz
 
@@ -86,49 +79,112 @@ fraud-etl/
 - preenche nulos em colunas não críticas com valores padrão configuráveis
 - remove outliers em `amt` por z-score com threshold configurável
 
-**Carga:** salva em Parquet particionado por `category` (local ou GCS via `gs://`).
+**Carga:** salva em Parquet particionado por `category` em `data/optimized/` (local) ou `gs://` (GCP).
 
-## API (endpoints planejados)
+## API
 
 | Método | Endpoint | Descrição |
 |--------|----------|-----------|
-| GET | `/summary` | Total de transações, fraudes e média de valor |
-| GET | `/fraud/by-category` | Fraudes agrupadas por categoria |
-| GET | `/fraud/by-period` | Fraudes por período do dia |
+| GET | `/summary` | Total de transações, fraudes, taxa de fraude e médias de valor |
+| GET | `/fraud/by-category` | Contagem e taxa de fraude agrupadas por categoria |
+| GET | `/fraud/by-period` | Contagem e taxa de fraude agrupadas por período do dia |
 
-## Como executar
+A API carrega os dados processados do Parquet na inicialização. Se o pipeline ainda não foi executado, ela sobe normalmente mas retorna `503` nos endpoints de dados.
+
+## Como executar localmente
 
 ### Pré-requisitos
 
+- Python 3.11+
+- Java 8 ou 11 (necessário para o PySpark)
+- Docker e Docker Compose (opcional, recomendado)
+
+### Sem Docker
+
 ```bash
+# 1. Instalar dependências
 pip install -r requirements.txt
-```
 
-### Executar o pipeline e a API localmente
+# 2. Colocar o CSV de entrada em data/raw/
 
-A API depende dos dados gerados pelo pipeline. A ordem de execução é:
-
-```bash
-# 1. Colocar o CSV de entrada em data/raw/
-# 2. Executar o pipeline para gerar os dados processados
+# 3. Executar o pipeline para gerar os dados processados
 python run_pipeline.py
 
-# 3. Subir a API (lê de data/optimized/ gerado no passo anterior)
+# 4. Subir a API
 uvicorn api.main:app --reload
 ```
 
-Com Docker (após ter os dados em `data/raw/`):
+A API ficará disponível em `http://localhost:8000` (porta padrão do Uvicorn).
+
+### Com Docker (recomendado)
 
 ```bash
-make up-build       # sobe a API
-make pipeline       # executa o ETL dentro do container
+# Subir a API (com hot-reload)
+make up-build
+
+# Em outro terminal: executar o pipeline dentro do container
+make pipeline
+
+# Ver logs
+make logs
+
+# Parar
+make down
 ```
 
-> Se a API subir sem dados disponíveis, ela inicia normalmente mas retorna `503` nos endpoints até que o pipeline seja executado.
+A API ficará disponível em `http://localhost:8080`. Documentação interativa em `http://localhost:8080/docs`.
 
-Os dados processados são salvos em `data/optimized/` particionados por `category`.
+### Comandos disponíveis no Makefile
 
-### Executar no GCP
+| Comando | Descrição |
+|---------|-----------|
+| `make up` | Inicia os containers |
+| `make up-build` | Inicia e reconstrói os containers |
+| `make pipeline` | Executa o ETL dentro do container |
+| `make test` | Executa os testes dentro do container |
+| `make logs` | Mostra logs em tempo real |
+| `make shell` | Acessa o shell do container |
+| `make down` | Para os containers |
+| `make clean` | Remove containers e volumes |
+| `make kill-port` | Mata processo rodando na porta 8080 |
+
+### Executar testes
+
+```bash
+# Localmente
+pytest tests/
+
+# Dentro do container
+make test
+```
+
+Os testes cobrem a camada de transformação, onde está a lógica de negócio principal:
+
+| Teste | O que valida |
+|-------|-------------|
+| `test_transaction_period_mapping` | `enrich()` classifica corretamente o horário em Madrugada, Manhã, Tarde e Noite |
+| `test_null_drop_critical` | registros com nulo em colunas críticas (`cc_num`) são removidos |
+| `test_null_fill_non_critical` | nulos em colunas não críticas são preenchidos com o valor padrão configurado |
+| `test_outlier_removal` | o filtro z-score remove transações com `amt` acima de 3 desvios padrão da média |
+
+## Configuração
+
+O arquivo `config/config.yaml` controla os caminhos e comportamento do pipeline:
+
+```yaml
+environment: local  # ou "gcp"
+
+raw_data_path: "data/raw/"
+optimized_data_path: "data/optimized"  # no GCP: "gs://seu-bucket/optimized/"
+
+partition_keys: ["category"]
+use_z_score_filter: true
+compression: "snappy"
+```
+
+As regras de validação (nulos obrigatórios, valores padrão para preenchimento, threshold de outliers) ficam em `config/validation_rules.yaml`.
+
+## Executar no GCP
 
 Para apontar para o Cloud Storage, basta alterar `optimized_data_path` no `config/config.yaml`:
 

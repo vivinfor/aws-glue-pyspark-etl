@@ -32,5 +32,16 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Fraud Detection API", lifespan=lifespan)
+app = FastAPI(
+    title="Fraud Detection API",
+    description="API para consulta de métricas de fraude em transações financeiras processadas pelo ETL PySpark.",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 app.include_router(transactions.router)
+
+
+@app.get("/", tags=["health"])
+def health():
+    """Verifica se a API está no ar."""
+    return {"status": "ok"}

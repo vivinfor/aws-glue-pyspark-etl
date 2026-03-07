@@ -6,7 +6,7 @@ router = APIRouter()
 
 def _get_df(request: Request):
     """Retorna o DataFrame carregado ou levanta 503 se o pipeline ainda não foi executado."""
-    df = _get_df(request)
+    df = request.app.state.df
     if df is None:
         raise HTTPException(
             status_code=503,
